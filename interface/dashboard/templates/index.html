@@ -1,0 +1,248 @@
+{% extends "base.html" %}
+
+{% block title %}Dashboard - Sentinel{% endblock %}
+
+{% block head %}
+<style>
+    .stat-card {
+        background: white;
+        padding: 1.5rem;
+        border-radius: 0.5rem;
+        box-shadow: 0 0.25rem 0.5rem rgba(0,0,0,.05);
+        margin-bottom: 1rem;
+    }
+    .stat-card h3 {
+        margin: 0;
+        font-size: 2rem;
+        font-weight: 600;
+    }
+    .stat-card p {
+        margin: 0.5rem 0 0;
+        color: #6c757d;
+    }
+    .stat-card i {
+        font-size: 2rem;
+        color: #0d6efd;
+        margin-bottom: 1rem;
+    }
+    .alert-table {
+        background: white;
+        border-radius: 0.5rem;
+        box-shadow: 0 0.25rem 0.5rem rgba(0,0,0,.05);
+    }
+    .alert-table th {
+        font-weight: 600;
+        color: #495057;
+    }
+    .alert-table td {
+        vertical-align: middle;
+    }
+    .threat-score {
+        font-weight: 600;
+    }
+    .threat-score.high {
+        color: #dc3545;
+    }
+    .threat-score.medium {
+        color: #ffc107;
+    }
+    .threat-score.low {
+        color: #28a745;
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="d-flex justify-content-between flex-wrap flex-md-nowrap align-items-center pt-3 pb-2 mb-3 border-bottom">
+    <h1 class="h2">Dashboard</h1>
+    <div class="btn-toolbar mb-2 mb-md-0">
+        <div class="btn-group me-2">
+            <button type="button" class="btn btn-sm btn-outline-secondary">Share</button>
+            <button type="button" class="btn btn-sm btn-outline-secondary">Export</button>
+        </div>
+        <button type="button" class="btn btn-sm btn-outline-secondary dropdown-toggle">
+            <i class="fas fa-calendar-alt"></i> This week
+        </button>
+    </div>
+</div>
+
+<!-- Stats Overview -->
+<div class="row">
+    <div class="col-md-3">
+        <div class="stat-card">
+            <i class="fas fa-file-alt"></i>
+            <h3>{{ stats.total_documents }}</h3>
+            <p>Total Documents</p>
+        </div>
+    </div>
+    <div class="col-md-3">
+        <div class="stat-card">
+            <i class="fas fa-exclamation-triangle"></i>
+            <h3>{{ stats.total_alerts }}</h3>
+            <p>Active Alerts</p>
+        </div>
+    </div>
+    <div class="col-md-3">
+        <div class="stat-card">
+            <i class="fas fa-radiation-alt"></i>
+            <h3>{{ stats.high_threats }}</h3>
+            <p>High Threats</p>
+        </div>
+    </div>
+    <div class="col-md-3">
+        <div class="stat-card">
+            <i class="fas fa-chart-line"></i>
+            <h3>{{ "%.2f"|format(stats.avg_threat_score) }}</h3>
+            <p>Average Threat Score</p>
+        </div>
+    </div>
+</div>
+
+<!-- Charts -->
+<div class="row mb-4">
+    <div class="col-md-8">
+        <div class="card">
+            <div class="card-header">
+                <h5><i class="fas fa-chart-area me-2"></i>Threat Timeline</h5>
+            </div>
+            <div class="card-body">
+                <canvas id="threatTrendChart" height="250"></canvas>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-4">
+        <div class="card">
+            <div class="card-header">
+                <h5><i class="fas fa-tags me-2"></i>Top Categories</h5>
+            </div>
+            <div class="card-body">
+                <canvas id="categoryChart" height="250"></canvas>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Recent Alerts -->
+<div class="row">
+    <div class="col-12">
+        <div class="card">
+            <div class="card-header">
+                <h5><i class="fas fa-bell me-2"></i>Recent Alerts</h5>
+            </div>
+            <div class="card-body">
+                <div class="table-responsive">
+                    <table class="table table-hover alert-table">
+                        <thead>
+                            <tr>
+                                <th>Date</th>
+                                <th>Title</th>
+                                <th>Source</th>
+                                <th>Threat Score</th>
+                                <th>Categories</th>
+                                <th>Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for alert in stats.recent_alerts %}
+                            <tr>
+                                <td>{{ alert.date }}</td>
+                                <td>{{ alert.title }}</td>
+                                <td>{{ alert.source_type }}</td>
+                                <td>
+                                    <span class="threat-score {% if alert.threat_score >= 0.7 %}high{% elif alert.threat_score >= 0.4 %}medium{% else %}low{% endif %}">
+                                        {{ "%.2f"|format(alert.threat_score) }}
+                                    </span>
+                                </td>
+                                <td>
+                                    {% for category in alert.categories %}
+                                    <span class="badge bg-info">{{ category.name }} ({{ "%.2f"|format(category.score) }})</span>
+                                    {% endfor %}
+                                </td>
+                                <td>
+                                    <a href="/documents/{{ alert.document_id }}" class="btn btn-sm btn-primary">
+                                        <i class="fas fa-eye"></i>
+                                    </a>
+                                </td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+// Parse data from template
+const timelineData = JSON.parse('{{ stats.threat_timeline|tojson|safe }}');
+const categoryData = JSON.parse('{{ stats.top_categories|tojson|safe }}');
+
+document.addEventListener('DOMContentLoaded', function() {
+    // Threat Timeline Chart
+    const timelineCtx = document.getElementById('threatTrendChart').getContext('2d');
+    new Chart(timelineCtx, {
+        type: 'line',
+        data: {
+            labels: timelineData.map(d => d.date),
+            datasets: [{
+                label: 'Average Threat Score',
+                data: timelineData.map(d => d.avg_score),
+                borderColor: '#0d6efd',
+                backgroundColor: 'rgba(13, 110, 253, 0.1)',
+                fill: true,
+                tension: 0.4
+            }]
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            plugins: {
+                legend: {
+                    display: false
+                }
+            },
+            scales: {
+                y: {
+                    beginAtZero: true,
+                    max: 1,
+                    ticks: {
+                        stepSize: 0.2
+                    }
+                }
+            }
+        }
+    });
+    
+    // Category Chart
+    const categoryCtx = document.getElementById('categoryChart').getContext('2d');
+    new Chart(categoryCtx, {
+        type: 'doughnut',
+        data: {
+            labels: categoryData.map(c => c.category),
+            datasets: [{
+                data: categoryData.map(c => c.score),
+                backgroundColor: [
+                    '#0d6efd',
+                    '#6610f2',
+                    '#6f42c1',
+                    '#d63384',
+                    '#dc3545'
+                ]
+            }]
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            plugins: {
+                legend: {
+                    position: 'bottom'
+                }
+            }
+        }
+    });
+});
+</script>
+{% endblock %} 

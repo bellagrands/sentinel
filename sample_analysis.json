@@ -1,0 +1,53 @@
+{
+  "title": "Proposed Legislation to Revise Voter ID Requirements",
+  "content": "\n    The proposed legislation would require voters to present two forms of photo identification\n    at polling stations in order to cast a ballot. The bill would also reduce early voting days\n    from 14 to 5 and eliminate same-day voter registration. Proponents argue these measures are\n    necessary to ensure electoral integrity, while critics claim they will disproportionately\n    affect minority and low-income voters.\n    \n    The Department of Justice has expressed concerns that the legislation may violate Section 2\n    of the Voting Rights Act. The bill would also grant emergency powers to election officials\n    to delay or relocate polling stations with minimal notice.\n    \n    Additionally, the legislation includes provisions to modify the state's electoral certification\n    process, allowing the state legislature to review and potentially override county-level results\n    under certain circumstances.\n    ",
+  "source_type": "state_legislature",
+  "date": "2025-04-04",
+  "state": "TX",
+  "bill_number": "SB 452",
+  "processed_text": "the proposed legislation would require voters to present two forms of photo identification at polling stations in order to cast a ballot. the bill would also reduce early voting days from 14 to 5 and eliminate same-day voter registration. proponents argue these measures are necessary to ensure electoral integrity, while critics claim they will disproportionately affect minority and low-income voters. the department of justice has expressed concerns that the legislation may violate section 2 of the voting rights act. the bill would also grant emergency powers to election officials to delay or relocate polling stations with minimal notice. additionally, the legislation includes provisions to modify the state's electoral certification process, allowing the state legislature to review and potentially override county-level results under certain circumstances.",
+  "entities": {
+    "PERSON": [],
+    "ORG": [
+      "the department of justice"
+    ],
+    "GPE": [],
+    "LAW_TERM": [],
+    "USC_CITATION": [],
+    "GOV_AGENCY": [],
+    "LAW": [
+      "section 2"
+    ],
+    "DATE": [
+      "early voting days"
+    ],
+    "NORP": [],
+    "EVENT": [],
+    "BILL": [],
+    "FR_CITATION": []
+  },
+  "threat_categories": {
+    "voting_rights": 0.0,
+    "civil_liberties": 0.9796212201075277,
+    "edu_rights": 0.2548501017702344,
+    "executive_power": 1.0,
+    "transparency": 0.8996886074101705,
+    "immigration": 0.33343050836462124,
+    "anti_democratic": 0.9525811526391333,
+    "label_0": 0.5078352689743042,
+    "label_1": 0.49765443801879883
+  },
+  "transformer_classifications": {
+    "LABEL_0": 0.5078352689743042,
+    "LABEL_1": 0.49765443801879883
+  },
+  "anti_democratic_matches": {
+    "emergency powers": 0.9
+  },
+  "anti_democratic_score": 0.9,
+  "entity_relationships": [],
+  "relationship_threat_score": 0.0,
+  "threat_score": 0.7509603163662215,
+  "summary": "the proposed legislation would require voters to present two forms of photo identification at polling stations in order to cast a ballot. the bill wou...",
+  "analysis_timestamp": "2025-04-04T17:31:53.976597"
+}

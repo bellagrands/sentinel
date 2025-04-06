@@ -1,0 +1,387 @@
+{% extends "base.html" %}
+
+{% block title %}Visualize - Sentinel{% endblock %}
+
+{% block head %}
+<style>
+    .visualization-card {
+        background: white;
+        padding: 1.5rem;
+        border: 1px solid #dee2e6;
+        border-radius: 0.5rem;
+        margin-bottom: 1.5rem;
+    }
+    .filter-section {
+        background: #f8f9fa;
+        padding: 1rem;
+        border-radius: 0.5rem;
+        margin-bottom: 1.5rem;
+    }
+    .chart-container {
+        min-height: 300px;
+        position: relative;
+    }
+</style>
+<!-- Include Chart.js -->
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+{% endblock %}
+
+{% block content %}
+<div class="container-fluid">
+    <div class="row">
+        <div class="col-12">
+            <div class="card">
+                <div class="card-header">
+                    <h3 class="card-title">Threat Visualization</h3>
+                </div>
+                <div class="card-body">
+                    <div class="row">
+                        <div class="col-md-6">
+                            <div class="card">
+                                <div class="card-header">
+                                    <h5 class="card-title">Threat Score Distribution</h5>
+                                </div>
+                                <div class="card-body">
+                                    <canvas id="threatDistribution"></canvas>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="col-md-6">
+                            <div class="card">
+                                <div class="card-header">
+                                    <h5 class="card-title">Top Threat Categories</h5>
+                                </div>
+                                <div class="card-body">
+                                    <canvas id="threatCategories"></canvas>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="row mt-4">
+                        <div class="col-md-12">
+                            <div class="card">
+                                <div class="card-header">
+                                    <h5 class="card-title">Threat Timeline</h5>
+                                </div>
+                                <div class="card-body">
+                                    <canvas id="threatTimeline"></canvas>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Filters -->
+<div class="filter-section">
+    <form id="filterForm" class="row g-3" onsubmit="applyFilters(event)">
+        <div class="col-md-3">
+            <label for="timeRange" class="form-label">Time Range</label>
+            <select class="form-select" id="timeRange">
+                <option value="7d">Last 7 Days</option>
+                <option value="30d">Last 30 Days</option>
+                <option value="90d">Last 90 Days</option>
+                <option value="1y">Last Year</option>
+                <option value="custom">Custom Range</option>
+            </select>
+        </div>
+        <div class="col-md-3">
+            <label for="sourceType" class="form-label">Source Type</label>
+            <select class="form-select" id="sourceType" multiple>
+                <option value="federal_register">Federal Register</option>
+                <option value="congress">Congress.gov</option>
+                <option value="pacer">PACER</option>
+                <option value="state">State Legislature</option>
+            </select>
+        </div>
+        <div class="col-md-3">
+            <label for="documentType" class="form-label">Document Type</label>
+            <select class="form-select" id="documentType" multiple>
+                <option value="proposed_rule">Proposed Rule</option>
+                <option value="final_rule">Final Rule</option>
+                <option value="notice">Notice</option>
+                <option value="bill">Bill</option>
+                <option value="court_filing">Court Filing</option>
+            </select>
+        </div>
+        <div class="col-md-3 d-flex align-items-end">
+            <button type="submit" class="btn btn-primary">Apply Filters</button>
+        </div>
+    </form>
+</div>
+
+<!-- Document Volume Trends -->
+<div class="row">
+    <div class="col-md-6">
+        <div class="visualization-card">
+            <h4>Document Volume by Source</h4>
+            <div class="chart-container">
+                <canvas id="volumeBySourceChart"></canvas>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-6">
+        <div class="visualization-card">
+            <h4>Document Volume by Type</h4>
+            <div class="chart-container">
+                <canvas id="volumeByTypeChart"></canvas>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Category Distribution -->
+<div class="visualization-card">
+    <h4>Top Categories Over Time</h4>
+    <div class="chart-container">
+        <canvas id="categoryTrendsChart"></canvas>
+    </div>
+</div>
+
+<!-- Entity Network -->
+<div class="visualization-card">
+    <h4>Entity Relationship Network</h4>
+    <div class="chart-container">
+        <canvas id="entityNetworkChart"></canvas>
+    </div>
+</div>
+
+<!-- Geographic Distribution -->
+<div class="visualization-card">
+    <h4>Geographic Distribution</h4>
+    <div class="chart-container">
+        <canvas id="geographicDistributionChart"></canvas>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+    // Initialize charts when the page loads
+    document.addEventListener('DOMContentLoaded', async function() {
+        try {
+            const response = await fetch('/api/stats');
+            if (!response.ok) {
+                throw new Error('Failed to fetch statistics');
+            }
+            const stats = await response.json();
+            initializeCharts(stats);
+        } catch (error) {
+            console.error('Error:', error);
+            alert('Failed to load visualization data');
+        }
+    });
+
+    function initializeCharts(stats) {
+        // Threat Distribution Chart
+        new Chart(document.getElementById('threatDistribution'), {
+            type: 'bar',
+            data: {
+                labels: ['0-0.2', '0.2-0.4', '0.4-0.6', '0.6-0.8', '0.8-1.0'],
+                datasets: [{
+                    label: 'Number of Documents',
+                    data: stats.threat_distribution || [0, 0, 0, 0, 0],
+                    backgroundColor: [
+                        'rgba(40, 167, 69, 0.5)',
+                        'rgba(255, 193, 7, 0.5)',
+                        'rgba(255, 193, 7, 0.5)',
+                        'rgba(220, 53, 69, 0.5)',
+                        'rgba(220, 53, 69, 0.5)'
+                    ],
+                    borderColor: [
+                        'rgb(40, 167, 69)',
+                        'rgb(255, 193, 7)',
+                        'rgb(255, 193, 7)',
+                        'rgb(220, 53, 69)',
+                        'rgb(220, 53, 69)'
+                    ],
+                    borderWidth: 1
+                }]
+            },
+            options: {
+                responsive: true,
+                scales: {
+                    y: {
+                        beginAtZero: true,
+                        ticks: {
+                            stepSize: 1
+                        }
+                    }
+                }
+            }
+        });
+
+        // Top Threat Categories Chart
+        new Chart(document.getElementById('threatCategories'), {
+            type: 'doughnut',
+            data: {
+                labels: stats.top_categories?.map(c => c.category) || [],
+                datasets: [{
+                    data: stats.top_categories?.map(c => c.count) || [],
+                    backgroundColor: [
+                        'rgba(255, 99, 132, 0.5)',
+                        'rgba(54, 162, 235, 0.5)',
+                        'rgba(255, 206, 86, 0.5)',
+                        'rgba(75, 192, 192, 0.5)',
+                        'rgba(153, 102, 255, 0.5)'
+                    ],
+                    borderColor: [
+                        'rgb(255, 99, 132)',
+                        'rgb(54, 162, 235)',
+                        'rgb(255, 206, 86)',
+                        'rgb(75, 192, 192)',
+                        'rgb(153, 102, 255)'
+                    ],
+                    borderWidth: 1
+                }]
+            },
+            options: {
+                responsive: true,
+                plugins: {
+                    legend: {
+                        position: 'bottom'
+                    }
+                }
+            }
+        });
+
+        // Threat Timeline Chart
+        new Chart(document.getElementById('threatTimeline'), {
+            type: 'line',
+            data: {
+                labels: stats.threat_timeline?.map(t => t.date) || [],
+                datasets: [{
+                    label: 'Average Threat Score',
+                    data: stats.threat_timeline?.map(t => t.avg_score) || [],
+                    borderColor: 'rgb(75, 192, 192)',
+                    tension: 0.1,
+                    fill: false
+                }]
+            },
+            options: {
+                responsive: true,
+                scales: {
+                    y: {
+                        beginAtZero: true,
+                        max: 1
+                    }
+                }
+            }
+        });
+
+        // Volume by Source Chart
+        new Chart(document.getElementById('volumeBySourceChart'), {
+            type: 'line',
+            data: {
+                labels: [],
+                datasets: []
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false
+            }
+        });
+
+        // Volume by Type Chart
+        new Chart(document.getElementById('volumeByTypeChart'), {
+            type: 'pie',
+            data: {
+                labels: [],
+                datasets: [{
+                    data: [],
+                    backgroundColor: []
+                }]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false
+            }
+        });
+
+        // Category Trends Chart
+        new Chart(document.getElementById('categoryTrendsChart'), {
+            type: 'line',
+            data: {
+                labels: [],
+                datasets: []
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false
+            }
+        });
+
+        // Entity Network Chart (placeholder)
+        new Chart(document.getElementById('entityNetworkChart'), {
+            type: 'bubble',
+            data: {
+                datasets: []
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false
+            }
+        });
+
+        // Geographic Distribution Chart
+        new Chart(document.getElementById('geographicDistributionChart'), {
+            type: 'bar',
+            data: {
+                labels: [],
+                datasets: [{
+                    label: 'Documents by Region',
+                    data: [],
+                    backgroundColor: 'rgba(54, 162, 235, 0.5)'
+                }]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                indexAxis: 'y'
+            }
+        });
+    }
+
+    function applyFilters(event) {
+        event.preventDefault();
+        loadData();
+    }
+
+    function loadData() {
+        // TODO: Implement actual data loading from the backend
+        // This is mock data for demonstration
+        mockLoadData();
+    }
+
+    function mockLoadData() {
+        return new Promise(resolve => {
+            setTimeout(() => {
+                // Update Threat Distribution
+                const threatChart = Chart.getChart('threatDistribution');
+                threatChart.data.datasets[0].data = [15, 25, 30, 20, 10];
+                threatChart.update();
+
+                // Update Volume by Source
+                const sourceChart = Chart.getChart('volumeBySourceChart');
+                sourceChart.data.labels = ['Jan', 'Feb', 'Mar', 'Apr', 'May'];
+                sourceChart.data.datasets = [{
+                    label: 'Federal Register',
+                    data: [65, 59, 80, 81, 56],
+                    borderColor: 'rgb(75, 192, 192)'
+                }, {
+                    label: 'Congress.gov',
+                    data: [28, 48, 40, 19, 86],
+                    borderColor: 'rgb(255, 99, 132)'
+                }];
+                sourceChart.update();
+
+                // Update other charts similarly...
+                resolve();
+            }, 1000);
+        });
+    }
+</script>
+{% endblock %} 

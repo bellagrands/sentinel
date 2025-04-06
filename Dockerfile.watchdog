@@ -1,0 +1,39 @@
+FROM python:3.11-slim
+
+LABEL maintainer="Sentinel Project Team"
+LABEL description="Sentinel Democracy Watchdog System - Watchdog Service"
+
+# Set working directory
+WORKDIR /app
+
+# Install build dependencies
+RUN apt-get update && apt-get install -y \
+    build-essential \
+    && rm -rf /var/lib/apt/lists/*
+
+# Copy requirements file
+COPY requirements.txt .
+
+# Install Python dependencies
+RUN pip install --no-cache-dir -r requirements.txt
+
+# Install additional dependencies for the web interface
+RUN pip install --no-cache-dir \
+    uvicorn==0.27.1 \
+    fastapi==0.110.0 \
+    SQLAlchemy==2.0.28 \
+    passlib==1.7.4 \
+    bcrypt==4.1.2 \
+    python-dotenv==1.0.1
+
+# Copy application code
+COPY . .
+
+# Create directory for SQLite database
+RUN mkdir -p /app/data && chown -R nobody:nogroup /app/data
+
+# Switch to non-root user
+USER nobody
+
+# Command to run the application
+CMD ["python", "main.py"] 

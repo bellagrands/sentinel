@@ -1,0 +1,196 @@
+version: '3.8'
+
+services:
+  sentinel:
+    build:
+      context: .
+      dockerfile: Dockerfile.watchdog
+    container_name: sentinel-watchdog
+    ports:
+      - "8000:8000"
+    volumes:
+      - ./data:/app/data
+      - ./logs:/app/logs
+      - ./alerts:/app/alerts
+      - ./.env:/app/.env
+      - ./config.yaml:/app/config.yaml
+    env_file:
+      - .env
+    restart: unless-stopped
+    command: python main.py --all
+    networks:
+      - sentinel-network
+
+  # Uncomment to add a scheduler service for regular runs
+  # scheduler:
+  #   build:
+  #     context: .
+  #     dockerfile: Dockerfile
+  #   container_name: sentinel-scheduler
+  #   volumes:
+  #     - ./data:/app/data
+  #     - ./logs:/app/logs
+  #     - ./alerts:/app/alerts
+  #     - ./.env:/app/.env
+  #     - ./config.yaml:/app/config.yaml
+  #   env_file:
+  #     - .env
+  #   restart: unless-stopped
+  #   command: >
+  #     sh -c "echo '0 */6 * * * python /app/main.py --collect-only >> /app/logs/collect.log 2>&1' > /etc/crontabs/root &&
+  #            echo '30 */6 * * * python /app/main.py --analyze-only >> /app/logs/analyze.log 2>&1' >> /etc/crontabs/root &&
+  #            echo '45 */6 * * * python /app/main.py --alerts-only >> /app/logs/alerts.log 2>&1' >> /etc/crontabs/root &&
+  #            crond -f"
+
+  # Uncomment to add a simple web dashboard (requires implementing a web interface)
+  # dashboard:
+  #   build:
+  #     context: .
+  #     dockerfile: Dockerfile.web
+  #   container_name: sentinel-dashboard
+  #   ports:
+  #     - "8080:8080"
+  #   volumes:
+  #     - ./data:/app/data
+  #     - ./logs:/app/logs
+  #     - ./alerts:/app/alerts
+  #     - ./.env:/app/.env
+  #     - ./config.yaml:/app/config.yaml
+  #   env_file:
+  #     - .env
+  #   restart: unless-stopped
+  #   depends_on:
+  #     - sentinel
+  #   command: python web_dashboard.py
+
+  # Web Dashboard
+  dashboard:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: sentinel-dashboard
+    container_name: sentinel-dashboard
+    restart: always
+    ports:
+      - "5000:5000"
+    volumes:
+      - ./:/app
+    environment:
+      - FLASK_APP=interface/dashboard/__init__.py
+      - FLASK_ENV=development
+      - PYTHONPATH=/app
+    command: flask run --host=0.0.0.0
+    networks:
+      - sentinel-network
+
+  # Add Redis for caching (optional but recommended)
+  redis:
+    image: redis:alpine
+    container_name: sentinel-redis
+    restart: always
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis-data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+    deploy:
+      resources:
+        limits:
+          memory: 512M
+    networks:
+      - sentinel-network
+
+  # Document Processing Service (for scheduled tasks)
+  processor:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: sentinel-processor
+    container_name: sentinel-processor
+    command: python -m scripts.process_documents
+    restart: always
+    depends_on:
+      redis:
+        condition: service_healthy
+    volumes:
+      - ./data:/app/data
+      - ./logs:/app/logs
+    environment:
+      - TZ=UTC
+      - PYTHONPATH=/app
+      - REDIS_HOST=redis
+      - REDIS_PORT=6379
+      - RUNNING_IN_CONTAINER=true
+      # Add any API keys or credentials as environment variables
+      # - CONGRESS_API_KEY=${CONGRESS_API_KEY}
+      # - PACER_USERNAME=${PACER_USERNAME}
+      # - PACER_PASSWORD=${PACER_PASSWORD}
+      # - OPENAI_API_KEY=${OPENAI_API_KEY}
+    deploy:
+      resources:
+        limits:
+          memory: 4G
+        reservations:
+          memory: 1G
+    networks:
+      - sentinel-network
+
+  # Periodic Data Collection Service
+  collector:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: sentinel-collector
+    container_name: sentinel-collector
+    command: python -m scripts.collect_documents
+    restart: always
+    depends_on:
+      redis:
+        condition: service_healthy
+    volumes:
+      - ./data:/app/data
+      - ./logs:/app/logs
+    environment:
+      - TZ=UTC
+      - PYTHONPATH=/app
+      - REDIS_HOST=redis
+      - REDIS_PORT=6379
+      - SCHEDULE_INTERVAL=86400  # Collect data every 24 hours
+      - RUNNING_IN_CONTAINER=true
+      # Add any API keys or credentials as environment variables
+      # - CONGRESS_API_KEY=${CONGRESS_API_KEY}
+      # - PACER_USERNAME=${PACER_USERNAME}
+      # - PACER_PASSWORD=${PACER_PASSWORD}
+    deploy:
+      resources:
+        limits:
+          memory: 2G
+        reservations:
+          memory: 512M
+    networks:
+      - sentinel-network
+
+  playwright:
+    image: mcr.microsoft.com/playwright:v1.42.1
+    volumes:
+      - ./:/app
+    working_dir: /app
+    depends_on:
+      - dashboard
+    networks:
+      - sentinel-network
+
+volumes:
+  data:
+  logs:
+  alerts:
+  redis-data:
+    driver: local
+
+networks:
+  sentinel-network:
+    driver: bridge

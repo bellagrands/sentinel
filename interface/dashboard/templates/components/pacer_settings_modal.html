@@ -1,0 +1,245 @@
+<!-- PACER Settings Modal -->
+<div class="modal fade" id="pacerSettingsModal" tabindex="-1" aria-labelledby="pacerSettingsModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="pacerSettingsModalLabel">PACER Settings</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+                <form id="pacerSettingsForm">
+                    <!-- Authentication -->
+                    <div class="mb-4">
+                        <h6 class="mb-3">Authentication</h6>
+                        <div class="row">
+                            <div class="col-md-6">
+                                <div class="mb-3">
+                                    <label for="pacerUsername" class="form-label">PACER Username</label>
+                                    <input type="text" class="form-control" id="pacerUsername" name="username" required>
+                                </div>
+                            </div>
+                            <div class="col-md-6">
+                                <div class="mb-3">
+                                    <label for="pacerPassword" class="form-label">PACER Password</label>
+                                    <input type="password" class="form-control" id="pacerPassword" name="password" required>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Court Selection -->
+                    <div class="mb-4">
+                        <h6 class="mb-3">Court Selection</h6>
+                        <div class="row">
+                            <div class="col-md-6">
+                                <div class="mb-3">
+                                    <label class="form-label">District Courts</label>
+                                    <div class="form-check">
+                                        <input class="form-check-input" type="checkbox" value="dcd" id="courtDCD" name="courts">
+                                        <label class="form-check-label" for="courtDCD">D.C. District (DCD)</label>
+                                    </div>
+                                    <div class="form-check">
+                                        <input class="form-check-input" type="checkbox" value="nysd" id="courtNYSD" name="courts">
+                                        <label class="form-check-label" for="courtNYSD">Southern District of NY (NYSD)</label>
+                                    </div>
+                                    <div class="form-check">
+                                        <input class="form-check-input" type="checkbox" value="cacd" id="courtCACD" name="courts">
+                                        <label class="form-check-label" for="courtCACD">Central District of CA (CACD)</label>
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="col-md-6">
+                                <div class="mb-3">
+                                    <label class="form-label">Circuit Courts</label>
+                                    <div class="form-check">
+                                        <input class="form-check-input" type="checkbox" value="cadc" id="courtCADC" name="courts">
+                                        <label class="form-check-label" for="courtCADC">D.C. Circuit (CADC)</label>
+                                    </div>
+                                    <div class="form-check">
+                                        <input class="form-check-input" type="checkbox" value="ca2" id="courtCA2" name="courts">
+                                        <label class="form-check-label" for="courtCA2">Second Circuit (CA2)</label>
+                                    </div>
+                                    <div class="form-check">
+                                        <input class="form-check-input" type="checkbox" value="ca9" id="courtCA9" name="courts">
+                                        <label class="form-check-label" for="courtCA9">Ninth Circuit (CA9)</label>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Collection Settings -->
+                    <div class="mb-4">
+                        <h6 class="mb-3">Collection Settings</h6>
+                        <div class="row">
+                            <div class="col-md-6">
+                                <div class="mb-3">
+                                    <label for="updateFrequency" class="form-label">Update Frequency (hours)</label>
+                                    <input type="number" class="form-control" id="updateFrequency" name="update_frequency" min="1" value="24">
+                                </div>
+                            </div>
+                            <div class="col-md-6">
+                                <div class="mb-3">
+                                    <label for="maxDaysBack" class="form-label">Max Days Back</label>
+                                    <input type="number" class="form-control" id="maxDaysBack" name="max_days_back" min="1" value="7">
+                                </div>
+                            </div>
+                        </div>
+                        <div class="row">
+                            <div class="col-md-6">
+                                <div class="mb-3">
+                                    <label for="rateLimit" class="form-label">Rate Limit (requests/minute)</label>
+                                    <input type="number" class="form-control" id="rateLimit" name="rate_limit" min="1" value="60">
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Document Types -->
+                    <div class="mb-4">
+                        <h6 class="mb-3">Document Types</h6>
+                        <div class="row">
+                            <div class="col-md-6">
+                                <div class="form-check">
+                                    <input class="form-check-input" type="checkbox" value="motion" id="typeMotion" name="document_types" checked>
+                                    <label class="form-check-label" for="typeMotion">Motions</label>
+                                </div>
+                                <div class="form-check">
+                                    <input class="form-check-input" type="checkbox" value="order" id="typeOrder" name="document_types" checked>
+                                    <label class="form-check-label" for="typeOrder">Orders</label>
+                                </div>
+                                <div class="form-check">
+                                    <input class="form-check-input" type="checkbox" value="opinion" id="typeOpinion" name="document_types" checked>
+                                    <label class="form-check-label" for="typeOpinion">Opinions</label>
+                                </div>
+                            </div>
+                            <div class="col-md-6">
+                                <div class="form-check">
+                                    <input class="form-check-input" type="checkbox" value="judgment" id="typeJudgment" name="document_types" checked>
+                                    <label class="form-check-label" for="typeJudgment">Judgments</label>
+                                </div>
+                                <div class="form-check">
+                                    <input class="form-check-input" type="checkbox" value="tro" id="typeTRO" name="document_types" checked>
+                                    <label class="form-check-label" for="typeTRO">Temporary Restraining Orders</label>
+                                </div>
+                                <div class="form-check">
+                                    <input class="form-check-input" type="checkbox" value="injunction" id="typeInjunction" name="document_types" checked>
+                                    <label class="form-check-label" for="typeInjunction">Injunctions</label>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Alert Settings -->
+                    <div class="mb-4">
+                        <h6 class="mb-3">Alert Settings</h6>
+                        <div class="row">
+                            <div class="col-md-6">
+                                <div class="mb-3">
+                                    <label for="minThreatScore" class="form-label">Minimum Threat Score</label>
+                                    <input type="number" class="form-control" id="minThreatScore" name="min_threat_score" min="0" max="1" step="0.1" value="0.7">
+                                </div>
+                            </div>
+                            <div class="col-md-6">
+                                <div class="mb-3">
+                                    <label for="alertKeywords" class="form-label">Alert Keywords</label>
+                                    <input type="text" class="form-control" id="alertKeywords" name="alert_keywords" placeholder="comma-separated keywords">
+                                    <small class="form-text text-muted">e.g., voting rights, civil rights, election</small>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </form>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                <button type="button" class="btn btn-primary" onclick="savePacerSettings()">Save Settings</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+// Load PACER settings
+function loadPacerSettings() {
+    fetch('/api/data_sources/pacer')
+        .then(response => response.json())
+        .then(data => {
+            // Fill in form fields
+            document.getElementById('pacerUsername').value = data.config.username || '';
+            document.getElementById('updateFrequency').value = data.config.update_frequency || 24;
+            document.getElementById('maxDaysBack').value = data.config.max_days_back || 7;
+            document.getElementById('rateLimit').value = data.config.rate_limit || 60;
+            document.getElementById('minThreatScore').value = data.config.min_threat_score || 0.7;
+            document.getElementById('alertKeywords').value = (data.config.alert_keywords || []).join(', ');
+
+            // Check court checkboxes
+            const courts = data.config.courts || [];
+            courts.forEach(court => {
+                const checkbox = document.querySelector(`input[name="courts"][value="${court}"]`);
+                if (checkbox) checkbox.checked = true;
+            });
+
+            // Check document type checkboxes
+            const docTypes = data.config.document_types || [];
+            docTypes.forEach(type => {
+                const checkbox = document.querySelector(`input[name="document_types"][value="${type}"]`);
+                if (checkbox) checkbox.checked = true;
+            });
+        })
+        .catch(error => console.error('Error loading PACER settings:', error));
+}
+
+// Save PACER settings
+function savePacerSettings() {
+    // Gather form data
+    const form = document.getElementById('pacerSettingsForm');
+    const formData = new FormData(form);
+    
+    // Convert to JSON format
+    const settings = {
+        source_id: 'pacer',
+        name: 'PACER',
+        status: 'active',
+        config: {
+            username: formData.get('username'),
+            password: formData.get('password'),
+            update_frequency: parseInt(formData.get('update_frequency')),
+            max_days_back: parseInt(formData.get('max_days_back')),
+            rate_limit: parseInt(formData.get('rate_limit')),
+            min_threat_score: parseFloat(formData.get('min_threat_score')),
+            alert_keywords: formData.get('alert_keywords').split(',').map(k => k.trim()).filter(k => k),
+            courts: Array.from(formData.getAll('courts')),
+            document_types: Array.from(formData.getAll('document_types'))
+        }
+    };
+
+    // Save settings via API
+    fetch('/api/data_sources/pacer', {
+        method: 'PUT',
+        headers: {
+            'Content-Type': 'application/json'
+        },
+        body: JSON.stringify(settings)
+    })
+    .then(response => response.json())
+    .then(data => {
+        // Close modal
+        const modal = bootstrap.Modal.getInstance(document.getElementById('pacerSettingsModal'));
+        modal.hide();
+
+        // Show success message
+        showAlert('success', 'PACER settings saved successfully');
+
+        // Refresh data source status
+        loadDataSourceStatus();
+    })
+    .catch(error => {
+        console.error('Error saving PACER settings:', error);
+        showAlert('danger', 'Error saving PACER settings');
+    });
+}
+
+// Initialize when modal is shown
+document.getElementById('pacerSettingsModal').addEventListener('show.bs.modal', loadPacerSettings);
+</script> 

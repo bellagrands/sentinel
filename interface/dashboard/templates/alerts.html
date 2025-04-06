@@ -1,0 +1,180 @@
+{% extends "base.html" %}
+
+{% block title %}Alerts - Sentinel{% endblock %}
+
+{% block head %}
+<style>
+    .alert-filters {
+        background: #f8f9fa;
+        padding: 1rem;
+        border-radius: 0.5rem;
+        margin-bottom: 1rem;
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="container-fluid">
+    <div class="row">
+        <div class="col-12">
+            <div class="card">
+                <div class="card-header">
+                    <h3 class="card-title">Recent Alerts</h3>
+                </div>
+                <div class="card-body">
+                    <div class="table-responsive">
+                        <table class="table table-hover">
+                            <thead>
+                                <tr>
+                                    <th>Date</th>
+                                    <th>Title</th>
+                                    <th>Source</th>
+                                    <th>Threat Score</th>
+                                    <th>Categories</th>
+                                    <th>Actions</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% for alert in stats.recent_alerts %}
+                                <tr>
+                                    <td>{{ alert.date }}</td>
+                                    <td>{{ alert.title }}</td>
+                                    <td>{{ alert.source_type }}</td>
+                                    <td>
+                                        <span class="badge {% if alert.threat_score >= 0.7 %}bg-danger{% elif alert.threat_score >= 0.4 %}bg-warning{% else %}bg-success{% endif %}">
+                                            {{ "%.2f"|format(alert.threat_score) }}
+                                        </span>
+                                    </td>
+                                    <td>
+                                        {% for category in alert.categories %}
+                                        <span class="badge bg-info">{{ category }}</span>
+                                        {% endfor %}
+                                    </td>
+                                    <td>
+                                        <a href="/documents/{{ alert.document_id }}" class="btn btn-sm btn-primary">View</a>
+                                    </td>
+                                </tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Filters -->
+<div class="alert-filters">
+    <form method="get" class="row g-3">
+        <div class="col-md-4">
+            <label for="min_score" class="form-label">Minimum Threat Score</label>
+            <input type="range" class="form-range" id="min_score" name="min_score" 
+                   min="0" max="1" step="0.1" value="{{ min_score }}"
+                   oninput="this.nextElementSibling.value = this.value">
+            <output>{{ min_score }}</output>
+        </div>
+        <div class="col-md-4">
+            <label for="limit" class="form-label">Results per page</label>
+            <select class="form-select" id="limit" name="limit">
+                <option value="20" {% if limit == 20 %}selected{% endif %}>20</option>
+                <option value="50" {% if limit == 50 %}selected{% endif %}>50</option>
+                <option value="100" {% if limit == 100 %}selected{% endif %}>100</option>
+            </select>
+        </div>
+        <div class="col-md-4 d-flex align-items-end">
+            <button type="submit" class="btn btn-primary">Apply Filters</button>
+        </div>
+    </form>
+</div>
+
+<!-- Alerts Table -->
+<div class="table-responsive">
+    <table class="table table-hover">
+        <thead>
+            <tr>
+                <th>Date</th>
+                <th>Title</th>
+                <th>Source</th>
+                <th>Threat Score</th>
+                <th>Top Category</th>
+                <th>Status</th>
+                <th>Actions</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% if alerts %}
+                {% for alert in alerts %}
+                <tr class="{% if alert.threat_score >= 0.7 %}table-danger{% elif alert.threat_score >= 0.4 %}table-warning{% else %}table-success{% endif %}">
+                    <td>{{ alert.date }}</td>
+                    <td>{{ alert.title }}</td>
+                    <td>{{ alert.source_type }}</td>
+                    <td>
+                        <div class="progress">
+                            <div class="progress-bar bg-{% if alert.threat_score >= 0.7 %}danger{% elif alert.threat_score >= 0.4 %}warning{% else %}success{% endif %}" 
+                                role="progressbar" style="width: {{ (alert.threat_score * 100)|int }}%" 
+                                aria-valuenow="{{ (alert.threat_score * 100)|int }}" aria-valuemin="0" aria-valuemax="100">
+                                {{ "%.2f"|format(alert.threat_score) }}
+                            </div>
+                        </div>
+                    </td>
+                    <td>
+                        {% if alert.categories %}
+                            {% set top_category = alert.categories|dictsort(by='value')|reverse|first %}
+                            <span class="badge bg-primary">{{ top_category[0]|replace('_', ' ')|title }}</span>
+                        {% else %}
+                            <span class="badge bg-secondary">Unknown</span>
+                        {% endif %}
+                    </td>
+                    <td>
+                        <span class="badge {% if alert.acknowledged %}bg-success{% else %}bg-warning{% endif %}">
+                            {{ "Acknowledged" if alert.acknowledged else "New" }}
+                        </span>
+                    </td>
+                    <td>
+                        <div class="btn-group">
+                            <a href="/documents/{{ alert.document_id }}" class="btn btn-sm btn-primary">
+                                <i class="fas fa-eye"></i>
+                            </a>
+                            <button type="button" class="btn btn-sm btn-success" onclick="acknowledgeAlert('{{ alert.alert_id }}')">
+                                <i class="fas fa-check"></i>
+                            </button>
+                        </div>
+                    </td>
+                </tr>
+                {% endfor %}
+            {% else %}
+                <tr>
+                    <td colspan="7" class="text-center">No alerts found matching the criteria</td>
+                </tr>
+            {% endif %}
+        </tbody>
+    </table>
+</div>
+
+<!-- Pagination -->
+<nav aria-label="Alert navigation">
+    <ul class="pagination justify-content-center">
+        <li class="page-item {% if offset == 0 %}disabled{% endif %}">
+            <a class="page-link" href="?offset={{ offset - limit }}&limit={{ limit }}&min_score={{ min_score }}" tabindex="-1">Previous</a>
+        </li>
+        <li class="page-item {% if alerts|length < limit %}disabled{% endif %}">
+            <a class="page-link" href="?offset={{ offset + limit }}&limit={{ limit }}&min_score={{ min_score }}">Next</a>
+        </li>
+    </ul>
+</nav>
+{% endblock %}
+
+{% block scripts %}
+<script>
+    function acknowledgeAlert(alertId) {
+        // TODO: Implement alert acknowledgment
+        console.log('Acknowledging alert:', alertId);
+    }
+
+    function exportAlerts() {
+        // TODO: Implement alert export
+        console.log('Exporting alerts');
+    }
+</script>
+{% endblock %} 

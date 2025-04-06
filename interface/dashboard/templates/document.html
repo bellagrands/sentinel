@@ -1,0 +1,187 @@
+{% extends "base.html" %}
+
+{% block head %}
+<style>
+    .document-metadata {
+        background: #f8f9fa;
+        padding: 1rem;
+        border-radius: 0.5rem;
+        margin-bottom: 1rem;
+    }
+    .document-content {
+        background: white;
+        padding: 2rem;
+        border: 1px solid #dee2e6;
+        border-radius: 0.5rem;
+        margin-bottom: 1rem;
+    }
+    .analysis-section {
+        background: #f8f9fa;
+        padding: 1rem;
+        border-radius: 0.5rem;
+        margin-bottom: 1rem;
+    }
+    .threat-indicator {
+        font-size: 1.5rem;
+        font-weight: bold;
+    }
+    .highlight {
+        background-color: #ffd70080;
+        padding: 0.2rem;
+        border-radius: 0.2rem;
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="d-flex justify-content-between flex-wrap flex-md-nowrap align-items-center pt-3 pb-2 mb-3 border-bottom">
+    <h1 class="h2">Document Details</h1>
+    <div class="btn-toolbar mb-2 mb-md-0">
+        <div class="btn-group me-2">
+            <button type="button" class="btn btn-sm btn-outline-secondary" onclick="exportDocument()">
+                <i class="fas fa-download"></i> Export
+            </button>
+            <button type="button" class="btn btn-sm btn-outline-primary" onclick="reanalyzeDocument()">
+                <i class="fas fa-sync"></i> Reanalyze
+            </button>
+        </div>
+    </div>
+</div>
+
+<!-- Document Metadata -->
+<div class="document-metadata">
+    <div class="row">
+        <div class="col-md-6">
+            <h5>Basic Information</h5>
+            <dl class="row">
+                <dt class="col-sm-4">Document ID</dt>
+                <dd class="col-sm-8">{{ document.document_id }}</dd>
+                
+                <dt class="col-sm-4">Source</dt>
+                <dd class="col-sm-8">{{ document.source_type }}</dd>
+                
+                <dt class="col-sm-4">Publication Date</dt>
+                <dd class="col-sm-8">{{ document.publication_date }}</dd>
+                
+                <dt class="col-sm-4">Document Type</dt>
+                <dd class="col-sm-8">{{ document.document_type }}</dd>
+            </dl>
+        </div>
+        <div class="col-md-6">
+            <h5>Analysis Summary</h5>
+            <dl class="row">
+                <dt class="col-sm-4">Threat Score</dt>
+                <dd class="col-sm-8">
+                    <div class="threat-indicator text-{% if document.threat_score >= 0.7 %}danger{% elif document.threat_score >= 0.4 %}warning{% else %}success{% endif %}">
+                        {{ "%.2f"|format(document.threat_score) }}
+                    </div>
+                </dd>
+                
+                <dt class="col-sm-4">Top Categories</dt>
+                <dd class="col-sm-8">
+                    {% if document.categories %}
+                        {% for category, score in document.categories|dictsort(by='value')|reverse|slice(":3") %}
+                            <span class="badge bg-primary me-1">{{ category|replace('_', ' ')|title }}</span>
+                        {% endfor %}
+                    {% else %}
+                        <span class="badge bg-secondary">No categories</span>
+                    {% endif %}
+                </dd>
+                
+                <dt class="col-sm-4">Analysis Date</dt>
+                <dd class="col-sm-8">{{ document.analysis_date }}</dd>
+            </dl>
+        </div>
+    </div>
+</div>
+
+<!-- Document Content -->
+<div class="document-content">
+    <h3>{{ document.title }}</h3>
+    <div class="content-body">
+        {{ document.content|safe }}
+    </div>
+</div>
+
+<!-- Analysis Details -->
+<div class="analysis-section">
+    <h4>Detailed Analysis</h4>
+    
+    <!-- Key Findings -->
+    <div class="mb-4">
+        <h5>Key Findings</h5>
+        <ul class="list-group">
+            {% if document.key_findings %}
+                {% for finding in document.key_findings %}
+                <li class="list-group-item">
+                    <div class="d-flex justify-content-between align-items-center">
+                        <span>{{ finding.description }}</span>
+                        <span class="badge bg-primary rounded-pill">{{ "%.2f"|format(finding.confidence) }}</span>
+                    </div>
+                </li>
+                {% endfor %}
+            {% else %}
+                <li class="list-group-item">No key findings available</li>
+            {% endif %}
+        </ul>
+    </div>
+    
+    <!-- Entities -->
+    <div class="mb-4">
+        <h5>Named Entities</h5>
+        <div class="row">
+            {% if document.entities %}
+                {% for entity_type, entities in document.entities|groupby('type') %}
+                <div class="col-md-4 mb-3">
+                    <h6>{{ entity_type|title }}</h6>
+                    <ul class="list-unstyled">
+                        {% for entity in entities %}
+                        <li>
+                            <span class="badge bg-light text-dark">{{ entity.text }}</span>
+                            <small class="text-muted">({{ "%.2f"|format(entity.confidence) }})</small>
+                        </li>
+                        {% endfor %}
+                    </ul>
+                </div>
+                {% endfor %}
+            {% else %}
+                <div class="col">No entities detected</div>
+            {% endif %}
+        </div>
+    </div>
+    
+    <!-- Related Documents -->
+    <div>
+        <h5>Related Documents</h5>
+        <div class="list-group">
+            {% if document.related_documents %}
+                {% for related in document.related_documents %}
+                <a href="/documents/{{ related.document_id }}" class="list-group-item list-group-item-action">
+                    <div class="d-flex w-100 justify-content-between">
+                        <h6 class="mb-1">{{ related.title }}</h6>
+                        <small>{{ related.similarity_score|round(2) }}</small>
+                    </div>
+                    <small class="text-muted">{{ related.source_type }} - {{ related.publication_date }}</small>
+                </a>
+                {% endfor %}
+            {% else %}
+                <div class="list-group-item">No related documents found</div>
+            {% endif %}
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+    function exportDocument() {
+        // TODO: Implement document export
+        console.log('Exporting document');
+    }
+    
+    function reanalyzeDocument() {
+        // TODO: Implement document reanalysis
+        console.log('Reanalyzing document');
+    }
+</script>
+{% endblock %} 

@@ -1,0 +1,38 @@
+# Sentinel project .gitignore
+
+# Environment and configuration
+.env
+venv/
+__pycache__/
+*.py[cod]
+*$py.class
+.Python
+env/
+.coverage
+.coverage.*
+.cache
+*.log
+
+# Collected data
+data/
+alerts/
+logs/
+
+# Distribution / packaging
+dist/
+build/
+*.egg-info/
+*.egg
+
+# Development tools
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# Docker
+.dockerignore
+
+# OS specific files
+.DS_Store
+Thumbs.db

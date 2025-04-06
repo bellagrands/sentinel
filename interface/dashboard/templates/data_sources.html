@@ -1,0 +1,298 @@
+{% extends "base.html" %}
+
+{% block head %}
+<style>
+    .source-card {
+        background: white;
+        padding: 1.5rem;
+        border: 1px solid #dee2e6;
+        border-radius: 0.5rem;
+        margin-bottom: 1.5rem;
+        transition: transform 0.2s;
+    }
+    .source-card:hover {
+        transform: translateY(-5px);
+        box-shadow: 0 4px 8px rgba(0,0,0,0.1);
+    }
+    .health-indicator {
+        width: 100px;
+        height: 100px;
+        position: relative;
+        margin: 0 auto;
+    }
+    .health-score {
+        position: absolute;
+        top: 50%;
+        left: 50%;
+        transform: translate(-50%, -50%);
+        font-size: 1.5rem;
+        font-weight: bold;
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="d-flex justify-content-between flex-wrap flex-md-nowrap align-items-center pt-3 pb-2 mb-3 border-bottom">
+    <h1 class="h2">Data Sources</h1>
+    <div class="btn-toolbar mb-2 mb-md-0">
+        <div class="btn-group me-2">
+            <button type="button" class="btn btn-sm btn-outline-secondary" onclick="exportStats()">
+                <i class="fas fa-download"></i> Export Stats
+            </button>
+            <button type="button" class="btn btn-sm btn-outline-primary" onclick="addDataSource()">
+                <i class="fas fa-plus"></i> Add Source
+            </button>
+        </div>
+    </div>
+</div>
+
+<div class="row">
+    {% for source_id, source in sources.items() %}
+    <div class="col-md-6">
+        <div class="source-card">
+            <div class="d-flex justify-content-between align-items-start mb-3">
+                <div>
+                    <h3>{{ source.name }}</h3>
+                    <div>
+                        <span class="badge bg-{{ source.status_class }} me-2">{{ source.status }}</span>
+                        <span class="badge bg-{{ source.auth_class }}">{{ source.auth_type }}</span>
+                    </div>
+                </div>
+                <div class="health-indicator">
+                    <canvas id="healthChart{{ loop.index }}" width="100" height="100"></canvas>
+                    <div class="health-score">{{ source.health_score }}</div>
+                </div>
+            </div>
+            <div class="row mb-3">
+                <div class="col">
+                    <small class="text-muted d-block">Last Update</small>
+                    <span>{{ source.last_update }}</span>
+                </div>
+                <div class="col">
+                    <small class="text-muted d-block">Documents</small>
+                    <span>{{ "{:,}".format(source.documents) }}</span>
+                </div>
+                <div class="col">
+                    <small class="text-muted d-block">Update Frequency</small>
+                    <span>{{ source.update_frequency }}</span>
+                </div>
+            </div>
+            <div class="d-grid">
+                <a href="{{ url_for('data_source_details', source_id=source_id) }}" class="btn btn-outline-primary">
+                    View Details
+                </a>
+            </div>
+        </div>
+    </div>
+    {% endfor %}
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+<script>
+    document.addEventListener('DOMContentLoaded', function() {
+        initializeHealthCharts();
+    });
+
+    function initializeHealthCharts() {
+        {% for source_id, source in sources.items() %}
+        new Chart(document.getElementById('healthChart{{ loop.index }}'), {
+            type: 'doughnut',
+            data: {
+                datasets: [{
+                    data: [{{ source.health_score }}, 100 - {{ source.health_score }}],
+                    backgroundColor: [
+                        getHealthColor({{ source.health_score }}),
+                        '#f8f9fa'
+                    ],
+                    borderWidth: 0
+                }]
+            },
+            options: {
+                cutout: '80%',
+                responsive: true,
+                maintainAspectRatio: true,
+                plugins: {
+                    legend: {
+                        display: false
+                    },
+                    tooltip: {
+                        enabled: false
+                    }
+                }
+            }
+        });
+        {% endfor %}
+    }
+
+    function getHealthColor(score) {
+        if (score >= 90) return '#28a745';
+        if (score >= 70) return '#ffc107';
+        return '#dc3545';
+    }
+
+    async function exportStats() {
+        try {
+            // Get all sources
+            const response = await fetch('/api/data_sources');
+            if (!response.ok) throw new Error('Failed to fetch data sources');
+            const sources = await response.json();
+            
+            // Format data for export
+            const exportData = {
+                exported_at: new Date().toISOString(),
+                sources: Object.entries(sources).map(([id, source]) => ({
+                    id,
+                    ...source,
+                    health_status: source.health_score >= 90 ? 'Healthy' :
+                                 source.health_score >= 70 ? 'Warning' : 'Critical'
+                }))
+            };
+            
+            // Create and download file
+            const blob = new Blob([JSON.stringify(exportData, null, 2)], { type: 'application/json' });
+            const url = window.URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = `sentinel_data_sources_${new Date().toISOString().split('T')[0]}.json`;
+            document.body.appendChild(a);
+            a.click();
+            window.URL.revokeObjectURL(url);
+            document.body.removeChild(a);
+            
+        } catch (error) {
+            console.error('Failed to export stats:', error);
+            alert('Failed to export stats. Please try again.');
+        }
+    }
+
+    async function addDataSource() {
+        // Show modal for adding new data source
+        const modal = new bootstrap.Modal(document.getElementById('addSourceModal'));
+        modal.show();
+    }
+
+    async function saveNewSource(event) {
+        event.preventDefault();
+        const form = event.target;
+        
+        try {
+            const sourceData = {
+                name: form.sourceName.value,
+                status: 'Inactive',
+                status_class: 'secondary',
+                auth_type: form.authType.value,
+                auth_class: getAuthClass(form.authType.value),
+                last_update: 'Never',
+                documents: 0,
+                update_frequency: form.updateFrequency.value,
+                health_score: 0,
+                config: {
+                    update_frequency: parseInt(form.updateFrequency.value),
+                    max_days_back: parseInt(form.maxDaysBack.value),
+                    document_types: Array.from(form.documentTypes.selectedOptions).map(opt => opt.value),
+                    rate_limit: parseInt(form.rateLimit.value),
+                    custom_fields: {
+                        api_version: form.apiVersion.value,
+                        base_url: form.baseUrl.value
+                    }
+                }
+            };
+            
+            // Generate source ID from name
+            const sourceId = form.sourceName.value
+                .toLowerCase()
+                .replace(/[^a-z0-9]+/g, '_')
+                .replace(/^_+|_+$/g, '');
+            
+            // Save new source
+            const response = await fetch(`/api/data_sources/${sourceId}`, {
+                method: 'PUT',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(sourceData)
+            });
+            
+            if (!response.ok) throw new Error('Failed to save data source');
+            
+            // Reload page to show new source
+            window.location.reload();
+            
+        } catch (error) {
+            console.error('Failed to save new source:', error);
+            alert('Failed to save new source. Please try again.');
+        }
+    }
+
+    function getAuthClass(authType) {
+        switch (authType.toLowerCase()) {
+            case 'public': return 'secondary';
+            case 'api key': return 'info';
+            case 'login': return 'warning';
+            default: return 'info';
+        }
+    }
+</script>
+
+<!-- Add Source Modal -->
+<div class="modal fade" id="addSourceModal" tabindex="-1">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">Add Data Source</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <form onsubmit="saveNewSource(event)">
+                <div class="modal-body">
+                    <div class="mb-3">
+                        <label for="sourceName" class="form-label">Source Name</label>
+                        <input type="text" class="form-control" id="sourceName" required>
+                    </div>
+                    <div class="mb-3">
+                        <label for="authType" class="form-label">Authentication Type</label>
+                        <select class="form-select" id="authType" required>
+                            <option value="Public">Public</option>
+                            <option value="API Key">API Key</option>
+                            <option value="Login">Login</option>
+                        </select>
+                    </div>
+                    <div class="mb-3">
+                        <label for="updateFrequency" class="form-label">Update Frequency (hours)</label>
+                        <input type="number" class="form-control" id="updateFrequency" min="1" max="24" value="1" required>
+                    </div>
+                    <div class="mb-3">
+                        <label for="maxDaysBack" class="form-label">Maximum Days to Look Back</label>
+                        <input type="number" class="form-control" id="maxDaysBack" min="1" max="90" value="30" required>
+                    </div>
+                    <div class="mb-3">
+                        <label for="documentTypes" class="form-label">Document Types</label>
+                        <select class="form-select" id="documentTypes" multiple required>
+                            <option value="Notices">Notices</option>
+                            <option value="Rules">Rules</option>
+                            <option value="Proposed Rules">Proposed Rules</option>
+                            <option value="Reports">Reports</option>
+                            <option value="Other">Other</option>
+                        </select>
+                    </div>
+                    <div class="mb-3">
+                        <label for="rateLimit" class="form-label">Rate Limit (requests per minute)</label>
+                        <input type="number" class="form-control" id="rateLimit" min="1" max="1000" value="60" required>
+                    </div>
+                    <div class="mb-3">
+                        <label for="apiVersion" class="form-label">API Version</label>
+                        <input type="text" class="form-control" id="apiVersion" value="v1">
+                    </div>
+                    <div class="mb-3">
+                        <label for="baseUrl" class="form-label">Base URL</label>
+                        <input type="url" class="form-control" id="baseUrl" placeholder="https://api.example.com">
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                    <button type="submit" class="btn btn-primary">Add Source</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+{% endblock %} 

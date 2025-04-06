@@ -1,0 +1,360 @@
+<!-- PACER Documents Component -->
+<div class="card">
+    <div class="card-header">
+        <div class="d-flex justify-content-between align-items-center">
+            <h5 class="mb-0">PACER Documents</h5>
+            <div class="btn-group">
+                <button class="btn btn-sm btn-outline-secondary" onclick="refreshPacerDocuments()">
+                    <i class="bi bi-arrow-clockwise"></i> Refresh
+                </button>
+                <button class="btn btn-sm btn-outline-secondary" data-bs-toggle="modal" data-bs-target="#pacerFiltersModal">
+                    <i class="bi bi-funnel"></i> Filters
+                </button>
+                <button class="btn btn-sm btn-outline-secondary" onclick="exportPacerDocuments()">
+                    <i class="bi bi-download"></i> Export
+                </button>
+            </div>
+        </div>
+    </div>
+    <div class="card-body">
+        <!-- Search and Filters -->
+        <div class="row mb-3">
+            <div class="col">
+                <div class="input-group">
+                    <input type="text" class="form-control" id="pacerSearchInput" placeholder="Search documents...">
+                    <button class="btn btn-outline-secondary" type="button" onclick="searchPacerDocuments()">
+                        <i class="bi bi-search"></i>
+                    </button>
+                </div>
+            </div>
+        </div>
+
+        <!-- Documents Table -->
+        <div class="table-responsive">
+            <table class="table table-hover" id="pacerDocumentsTable">
+                <thead>
+                    <tr>
+                        <th>Date</th>
+                        <th>Court</th>
+                        <th>Case Number</th>
+                        <th>Document Type</th>
+                        <th>Title</th>
+                        <th>Actions</th>
+                    </tr>
+                </thead>
+                <tbody id="pacerDocumentsBody">
+                    <!-- Documents will be loaded here -->
+                </tbody>
+            </table>
+        </div>
+
+        <!-- Pagination -->
+        <nav aria-label="PACER documents pagination">
+            <ul class="pagination justify-content-center" id="pacerPagination">
+                <!-- Pagination will be generated here -->
+            </ul>
+        </nav>
+    </div>
+</div>
+
+<!-- PACER Filters Modal -->
+<div class="modal fade" id="pacerFiltersModal" tabindex="-1" aria-labelledby="pacerFiltersModalLabel" aria-hidden="true">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="pacerFiltersModalLabel">PACER Document Filters</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+                <form id="pacerFiltersForm">
+                    <!-- Date Range -->
+                    <div class="mb-3">
+                        <label class="form-label">Date Range</label>
+                        <div class="row">
+                            <div class="col">
+                                <input type="date" class="form-control" id="startDate" name="start_date">
+                            </div>
+                            <div class="col">
+                                <input type="date" class="form-control" id="endDate" name="end_date">
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Courts -->
+                    <div class="mb-3">
+                        <label class="form-label">Courts</label>
+                        <select class="form-select" id="courtFilter" name="courts" multiple>
+                            <option value="dcd">D.C. District</option>
+                            <option value="nysd">Southern District of NY</option>
+                            <option value="cacd">Central District of CA</option>
+                            <option value="cadc">D.C. Circuit</option>
+                            <option value="ca2">Second Circuit</option>
+                            <option value="ca9">Ninth Circuit</option>
+                        </select>
+                    </div>
+
+                    <!-- Document Types -->
+                    <div class="mb-3">
+                        <label class="form-label">Document Types</label>
+                        <select class="form-select" id="docTypeFilter" name="document_types" multiple>
+                            <option value="motion">Motions</option>
+                            <option value="order">Orders</option>
+                            <option value="opinion">Opinions</option>
+                            <option value="judgment">Judgments</option>
+                            <option value="tro">Temporary Restraining Orders</option>
+                            <option value="injunction">Injunctions</option>
+                        </select>
+                    </div>
+
+                    <!-- Nature of Suit -->
+                    <div class="mb-3">
+                        <label class="form-label">Nature of Suit</label>
+                        <select class="form-select" id="suitTypeFilter" name="nature_of_suit" multiple>
+                            <option value="civil_rights">Civil Rights</option>
+                            <option value="voting">Voting Rights</option>
+                            <option value="constitutional">Constitutional</option>
+                            <option value="election">Election Law</option>
+                        </select>
+                    </div>
+                </form>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                <button type="button" class="btn btn-primary" onclick="applyPacerFilters()">Apply Filters</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Document Preview Modal -->
+<div class="modal fade" id="documentPreviewModal" tabindex="-1" aria-labelledby="documentPreviewModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="documentPreviewModalLabel">Document Preview</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+                <div id="documentPreviewContent">
+                    <!-- Document content will be loaded here -->
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
+                <button type="button" class="btn btn-primary" onclick="downloadDocument()">Download</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+let currentPage = 1;
+let currentFilters = {};
+let selectedDocument = null;
+
+// Load PACER documents
+function loadPacerDocuments(page = 1) {
+    currentPage = page;
+    const params = new URLSearchParams({
+        page: page,
+        ...currentFilters
+    });
+
+    fetch(`/api/data_sources/pacer/documents?${params}`)
+        .then(response => response.json())
+        .then(data => {
+            const tbody = document.getElementById('pacerDocumentsBody');
+            tbody.innerHTML = '';
+
+            data.documents.forEach(doc => {
+                const row = document.createElement('tr');
+                row.innerHTML = `
+                    <td>${new Date(doc.date).toLocaleDateString()}</td>
+                    <td>${doc.metadata.court}</td>
+                    <td>${doc.metadata.case_number}</td>
+                    <td>${doc.metadata.document_type}</td>
+                    <td>${doc.title}</td>
+                    <td>
+                        <button class="btn btn-sm btn-outline-primary" onclick="previewDocument('${doc.document_id}')">
+                            <i class="bi bi-eye"></i>
+                        </button>
+                        <button class="btn btn-sm btn-outline-secondary" onclick="downloadDocument('${doc.document_id}')">
+                            <i class="bi bi-download"></i>
+                        </button>
+                    </td>
+                `;
+                tbody.appendChild(row);
+            });
+
+            // Update pagination
+            updatePagination(data.total_pages, currentPage);
+        })
+        .catch(error => {
+            console.error('Error loading PACER documents:', error);
+            showAlert('danger', 'Error loading documents');
+        });
+}
+
+// Update pagination controls
+function updatePagination(totalPages, currentPage) {
+    const pagination = document.getElementById('pacerPagination');
+    pagination.innerHTML = '';
+
+    // Previous button
+    const prevLi = document.createElement('li');
+    prevLi.className = `page-item ${currentPage === 1 ? 'disabled' : ''}`;
+    prevLi.innerHTML = `
+        <a class="page-link" href="#" onclick="loadPacerDocuments(${currentPage - 1})" aria-label="Previous">
+            <span aria-hidden="true">&laquo;</span>
+        </a>
+    `;
+    pagination.appendChild(prevLi);
+
+    // Page numbers
+    for (let i = 1; i <= totalPages; i++) {
+        const li = document.createElement('li');
+        li.className = `page-item ${i === currentPage ? 'active' : ''}`;
+        li.innerHTML = `
+            <a class="page-link" href="#" onclick="loadPacerDocuments(${i})">${i}</a>
+        `;
+        pagination.appendChild(li);
+    }
+
+    // Next button
+    const nextLi = document.createElement('li');
+    nextLi.className = `page-item ${currentPage === totalPages ? 'disabled' : ''}`;
+    nextLi.innerHTML = `
+        <a class="page-link" href="#" onclick="loadPacerDocuments(${currentPage + 1})" aria-label="Next">
+            <span aria-hidden="true">&raquo;</span>
+        </a>
+    `;
+    pagination.appendChild(nextLi);
+}
+
+// Search documents
+function searchPacerDocuments() {
+    const searchTerm = document.getElementById('pacerSearchInput').value;
+    currentFilters.search = searchTerm;
+    loadPacerDocuments(1);
+}
+
+// Apply filters
+function applyPacerFilters() {
+    const form = document.getElementById('pacerFiltersForm');
+    const formData = new FormData(form);
+    
+    currentFilters = {
+        start_date: formData.get('start_date'),
+        end_date: formData.get('end_date'),
+        courts: Array.from(formData.getAll('courts')),
+        document_types: Array.from(formData.getAll('document_types')),
+        nature_of_suit: Array.from(formData.getAll('nature_of_suit'))
+    };
+
+    // Close modal
+    const modal = bootstrap.Modal.getInstance(document.getElementById('pacerFiltersModal'));
+    modal.hide();
+
+    // Reload documents with new filters
+    loadPacerDocuments(1);
+}
+
+// Preview document
+function previewDocument(documentId) {
+    fetch(`/api/data_sources/pacer/documents/${documentId}`)
+        .then(response => response.json())
+        .then(doc => {
+            selectedDocument = doc;
+            
+            // Update modal content
+            document.getElementById('documentPreviewModalLabel').textContent = doc.title;
+            document.getElementById('documentPreviewContent').innerHTML = `
+                <div class="mb-3">
+                    <strong>Case:</strong> ${doc.metadata.case_title}<br>
+                    <strong>Court:</strong> ${doc.metadata.court}<br>
+                    <strong>Case Number:</strong> ${doc.metadata.case_number}<br>
+                    <strong>Filed:</strong> ${new Date(doc.date).toLocaleDateString()}<br>
+                    <strong>Document Type:</strong> ${doc.metadata.document_type}<br>
+                    <strong>Pages:</strong> ${doc.metadata.page_count}
+                </div>
+                <div class="document-content">
+                    ${doc.content}
+                </div>
+            `;
+
+            // Show modal
+            const modal = new bootstrap.Modal(document.getElementById('documentPreviewModal'));
+            modal.show();
+        })
+        .catch(error => {
+            console.error('Error loading document:', error);
+            showAlert('danger', 'Error loading document preview');
+        });
+}
+
+// Download document
+function downloadDocument(documentId = null) {
+    const docId = documentId || selectedDocument?.document_id;
+    if (!docId) return;
+
+    fetch(`/api/data_sources/pacer/documents/${docId}/download`)
+        .then(response => response.blob())
+        .then(blob => {
+            const url = window.URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = `pacer_document_${docId}.pdf`;
+            document.body.appendChild(a);
+            a.click();
+            window.URL.revokeObjectURL(url);
+            a.remove();
+        })
+        .catch(error => {
+            console.error('Error downloading document:', error);
+            showAlert('danger', 'Error downloading document');
+        });
+}
+
+// Export documents
+function exportPacerDocuments() {
+    const params = new URLSearchParams(currentFilters);
+    
+    fetch(`/api/data_sources/pacer/documents/export?${params}`)
+        .then(response => response.blob())
+        .then(blob => {
+            const url = window.URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = `pacer_documents_${new Date().toISOString().split('T')[0]}.json`;
+            document.body.appendChild(a);
+            a.click();
+            window.URL.revokeObjectURL(url);
+            a.remove();
+        })
+        .catch(error => {
+            console.error('Error exporting documents:', error);
+            showAlert('danger', 'Error exporting documents');
+        });
+}
+
+// Refresh documents
+function refreshPacerDocuments() {
+    loadPacerDocuments(currentPage);
+}
+
+// Initialize
+document.addEventListener('DOMContentLoaded', () => {
+    loadPacerDocuments();
+});
+</script>
+
+<style>
+.document-content {
+    max-height: 500px;
+    overflow-y: auto;
+    padding: 1rem;
+    background-color: #f8f9fa;
+    border: 1px solid #dee2e6;
+    border-radius: 0.25rem;
+}
+</style> 

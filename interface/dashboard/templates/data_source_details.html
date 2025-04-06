@@ -1,0 +1,537 @@
+{% extends "base.html" %}
+
+{% block head %}
+<style>
+    .stats-card {
+        background: white;
+        padding: 1.5rem;
+        border: 1px solid #dee2e6;
+        border-radius: 0.5rem;
+        margin-bottom: 1.5rem;
+    }
+    .chart-container {
+        min-height: 300px;
+        position: relative;
+        margin-bottom: 1.5rem;
+    }
+    .error-log {
+        max-height: 300px;
+        overflow-y: auto;
+        font-family: monospace;
+        font-size: 0.9rem;
+        background: #f8f9fa;
+        padding: 1rem;
+        border-radius: 0.5rem;
+    }
+    .error-entry {
+        margin-bottom: 0.5rem;
+        padding: 0.5rem;
+        border-radius: 0.25rem;
+    }
+    .error-entry.error {
+        background: #f8d7da;
+        border: 1px solid #f5c6cb;
+    }
+    .error-entry.warning {
+        background: #fff3cd;
+        border: 1px solid #ffeeba;
+    }
+    .error-entry.info {
+        background: #d1ecf1;
+        border: 1px solid #bee5eb;
+    }
+</style>
+<!-- Include Chart.js -->
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+{% endblock %}
+
+{% block content %}
+<div class="d-flex justify-content-between flex-wrap flex-md-nowrap align-items-center pt-3 pb-2 mb-3 border-bottom">
+    <div>
+        <h1 class="h2">{{ source.name }}</h1>
+        <div>
+            <span class="badge bg-{{ source.status_class }} me-2">{{ source.status }}</span>
+            <span class="badge bg-{{ source.auth_class }}">{{ source.auth_type }}</span>
+        </div>
+    </div>
+    <div class="btn-toolbar mb-2 mb-md-0">
+        <div class="btn-group me-2">
+            <button type="button" class="btn btn-sm btn-outline-secondary" onclick="exportStats()">
+                <i class="fas fa-download"></i> Export Stats
+            </button>
+            <button type="button" class="btn btn-sm btn-outline-primary" onclick="configureSource()">
+                <i class="fas fa-cog"></i> Configure
+            </button>
+        </div>
+    </div>
+</div>
+
+<!-- Overview Stats -->
+<div class="row">
+    <div class="col-md-3">
+        <div class="stats-card">
+            <h6 class="text-muted">Total Documents</h6>
+            <h2>{{ source.total_documents }}</h2>
+            <small class="text-success">+{{ source.new_documents }} this week</small>
+        </div>
+    </div>
+    <div class="col-md-3">
+        <div class="stats-card">
+            <h6 class="text-muted">Collection Rate</h6>
+            <h2>{{ source.collection_rate }}/hr</h2>
+            <small class="text-muted">Average over 24h</small>
+        </div>
+    </div>
+    <div class="col-md-3">
+        <div class="stats-card">
+            <h6 class="text-muted">Success Rate</h6>
+            <h2>{{ source.success_rate }}%</h2>
+            <small class="text-muted">Last 100 requests</small>
+        </div>
+    </div>
+    <div class="col-md-3">
+        <div class="stats-card">
+            <h6 class="text-muted">API Usage</h6>
+            <h2>{{ source.api_usage }}%</h2>
+            <small class="text-muted">of daily limit</small>
+        </div>
+    </div>
+</div>
+
+<!-- Collection History -->
+<div class="stats-card">
+    <h4>Collection History</h4>
+    <div class="chart-container">
+        <canvas id="collectionHistoryChart"></canvas>
+    </div>
+</div>
+
+<!-- Document Types -->
+<div class="row">
+    <div class="col-md-6">
+        <div class="stats-card">
+            <h4>Document Types</h4>
+            <div class="chart-container">
+                <canvas id="documentTypesChart"></canvas>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-6">
+        <div class="stats-card">
+            <h4>Processing Times</h4>
+            <div class="chart-container">
+                <canvas id="processingTimesChart"></canvas>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Recent Activity -->
+<div class="stats-card">
+    <div class="d-flex justify-content-between align-items-center mb-3">
+        <h4>Recent Activity</h4>
+        <div class="btn-group">
+            <button type="button" class="btn btn-sm btn-outline-secondary" onclick="clearLogs()">
+                Clear Logs
+            </button>
+            <button type="button" class="btn btn-sm btn-outline-secondary" onclick="downloadLogs()">
+                Download
+            </button>
+        </div>
+    </div>
+    <div class="error-log">
+        {% for entry in source.recent_activity %}
+        <div class="error-entry {{ entry.level }}">
+            <span class="text-muted">{{ entry.timestamp }}</span>
+            <span class="ms-2">{{ entry.message }}</span>
+        </div>
+        {% endfor %}
+    </div>
+</div>
+
+<!-- Configuration -->
+<div class="stats-card">
+    <h4>Current Configuration</h4>
+    <div class="table-responsive">
+        <table class="table">
+            <tbody>
+                <tr>
+                    <th>Update Frequency</th>
+                    <td>{{ source.config.update_frequency }} hours</td>
+                </tr>
+                <tr>
+                    <th>Max Days Back</th>
+                    <td>{{ source.config.max_days_back }} days</td>
+                </tr>
+                <tr>
+                    <th>Document Types</th>
+                    <td>
+                        {% for type in source.config.document_types %}
+                        <span class="badge bg-secondary me-1">{{ type }}</span>
+                        {% endfor %}
+                    </td>
+                </tr>
+                <tr>
+                    <th>Rate Limiting</th>
+                    <td>{{ source.config.rate_limit }} requests per minute</td>
+                </tr>
+                {% if source.config.custom_fields %}
+                {% for field, value in source.config.custom_fields.items() %}
+                <tr>
+                    <th>{{ field|title }}</th>
+                    <td>{{ value }}</td>
+                </tr>
+                {% endfor %}
+                {% endif %}
+            </tbody>
+        </table>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+    let sourceId = '{{ source.name|lower|replace(" ", "_") }}';
+    
+    document.addEventListener('DOMContentLoaded', function() {
+        initializeCharts();
+        loadData();
+    });
+
+    function initializeCharts() {
+        // Collection History Chart
+        new Chart(document.getElementById('collectionHistoryChart'), {
+            type: 'line',
+            data: {
+                labels: [],
+                datasets: [{
+                    label: 'Documents Collected',
+                    data: [],
+                    borderColor: 'rgb(75, 192, 192)',
+                    tension: 0.1
+                }]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                scales: {
+                    y: {
+                        beginAtZero: true
+                    }
+                }
+            }
+        });
+
+        // Document Types Chart
+        new Chart(document.getElementById('documentTypesChart'), {
+            type: 'pie',
+            data: {
+                labels: [],
+                datasets: [{
+                    data: [],
+                    backgroundColor: []
+                }]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false
+            }
+        });
+
+        // Processing Times Chart
+        new Chart(document.getElementById('processingTimesChart'), {
+            type: 'bar',
+            data: {
+                labels: [],
+                datasets: [{
+                    label: 'Average Processing Time (ms)',
+                    data: [],
+                    backgroundColor: 'rgba(54, 162, 235, 0.5)'
+                }]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                scales: {
+                    y: {
+                        beginAtZero: true
+                    }
+                }
+            }
+        });
+    }
+
+    async function loadData() {
+        try {
+            const response = await fetch(`/api/data_sources/${sourceId}`);
+            if (!response.ok) throw new Error('Failed to fetch source data');
+            const source = await response.json();
+            
+            updateCharts(source);
+            updateStats(source);
+            
+        } catch (error) {
+            console.error('Failed to load source data:', error);
+            alert('Failed to load source data. Please try again.');
+        }
+    }
+
+    function updateCharts(source) {
+        // Update Collection History
+        const historyChart = Chart.getChart('collectionHistoryChart');
+        historyChart.data.labels = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri'];
+        historyChart.data.datasets[0].data = [65, 59, 80, 81, 56];
+        historyChart.update();
+
+        // Update Document Types
+        const typesChart = Chart.getChart('documentTypesChart');
+        typesChart.data.labels = source.config.document_types;
+        typesChart.data.datasets[0].data = source.config.document_types.map(() => Math.floor(Math.random() * 300));
+        typesChart.data.datasets[0].backgroundColor = [
+            'rgb(255, 99, 132)',
+            'rgb(54, 162, 235)',
+            'rgb(255, 205, 86)',
+            'rgb(75, 192, 192)',
+            'rgb(153, 102, 255)'
+        ];
+        typesChart.update();
+
+        // Update Processing Times
+        const timesChart = Chart.getChart('processingTimesChart');
+        timesChart.data.labels = ['Download', 'Parse', 'Process', 'Store'];
+        timesChart.data.datasets[0].data = [100, 250, 300, 150];
+        timesChart.update();
+    }
+
+    function updateStats(source) {
+        // Update stats that might have changed
+        document.getElementById('totalDocuments').textContent = source.total_documents;
+        document.getElementById('newDocuments').textContent = source.new_documents;
+        document.getElementById('collectionRate').textContent = source.collection_rate;
+        document.getElementById('successRate').textContent = source.success_rate;
+        document.getElementById('apiUsage').textContent = source.api_usage;
+    }
+
+    async function exportStats() {
+        try {
+            const response = await fetch(`/api/data_sources/${sourceId}`);
+            if (!response.ok) throw new Error('Failed to fetch source data');
+            const source = await response.json();
+            
+            // Format data for export
+            const exportData = {
+                exported_at: new Date().toISOString(),
+                source: {
+                    id: sourceId,
+                    ...source,
+                    health_status: source.health_score >= 90 ? 'Healthy' :
+                                 source.health_score >= 70 ? 'Warning' : 'Critical'
+                }
+            };
+            
+            // Create and download file
+            const blob = new Blob([JSON.stringify(exportData, null, 2)], { type: 'application/json' });
+            const url = window.URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = `sentinel_source_${sourceId}_${new Date().toISOString().split('T')[0]}.json`;
+            document.body.appendChild(a);
+            a.click();
+            window.URL.revokeObjectURL(url);
+            document.body.removeChild(a);
+            
+        } catch (error) {
+            console.error('Failed to export stats:', error);
+            alert('Failed to export stats. Please try again.');
+        }
+    }
+
+    async function configureSource() {
+        // Show modal for configuring source
+        const modal = new bootstrap.Modal(document.getElementById('configureSourceModal'));
+        
+        try {
+            // Load current configuration
+            const response = await fetch(`/api/data_sources/${sourceId}`);
+            if (!response.ok) throw new Error('Failed to fetch source data');
+            const source = await response.json();
+            
+            // Populate form with current values
+            const form = document.getElementById('sourceConfigForm');
+            form.updateFrequency.value = source.config.update_frequency;
+            form.maxDaysBack.value = source.config.max_days_back;
+            form.rateLimit.value = source.config.rate_limit;
+            form.apiVersion.value = source.config.custom_fields.api_version;
+            form.baseUrl.value = source.config.custom_fields.base_url;
+            
+            // Set document types
+            Array.from(form.documentTypes.options).forEach(option => {
+                option.selected = source.config.document_types.includes(option.value);
+            });
+            
+            modal.show();
+            
+        } catch (error) {
+            console.error('Failed to load source configuration:', error);
+            alert('Failed to load source configuration. Please try again.');
+        }
+    }
+
+    async function saveSourceConfig(event) {
+        event.preventDefault();
+        const form = event.target;
+        
+        try {
+            const response = await fetch(`/api/data_sources/${sourceId}`);
+            if (!response.ok) throw new Error('Failed to fetch source data');
+            const source = await response.json();
+            
+            // Update configuration
+            source.config = {
+                update_frequency: parseInt(form.updateFrequency.value),
+                max_days_back: parseInt(form.maxDaysBack.value),
+                document_types: Array.from(form.documentTypes.selectedOptions).map(opt => opt.value),
+                rate_limit: parseInt(form.rateLimit.value),
+                custom_fields: {
+                    api_version: form.apiVersion.value,
+                    base_url: form.baseUrl.value
+                }
+            };
+            
+            // Save updated source
+            const saveResponse = await fetch(`/api/data_sources/${sourceId}`, {
+                method: 'PUT',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(source)
+            });
+            
+            if (!saveResponse.ok) throw new Error('Failed to save source configuration');
+            
+            // Add activity log entry
+            await fetch(`/api/data_sources/${sourceId}/activity`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+                body: new URLSearchParams({
+                    level: 'info',
+                    message: 'Configuration updated'
+                })
+            });
+            
+            // Reload page to show updated configuration
+            window.location.reload();
+            
+        } catch (error) {
+            console.error('Failed to save source configuration:', error);
+            alert('Failed to save source configuration. Please try again.');
+        }
+    }
+
+    async function clearLogs() {
+        try {
+            const response = await fetch(`/api/data_sources/${sourceId}`);
+            if (!response.ok) throw new Error('Failed to fetch source data');
+            const source = await response.json();
+            
+            // Clear recent activity
+            source.recent_activity = [];
+            
+            // Save updated source
+            const saveResponse = await fetch(`/api/data_sources/${sourceId}`, {
+                method: 'PUT',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(source)
+            });
+            
+            if (!saveResponse.ok) throw new Error('Failed to clear logs');
+            
+            // Reload page to show cleared logs
+            window.location.reload();
+            
+        } catch (error) {
+            console.error('Failed to clear logs:', error);
+            alert('Failed to clear logs. Please try again.');
+        }
+    }
+
+    async function downloadLogs() {
+        try {
+            const response = await fetch(`/api/data_sources/${sourceId}`);
+            if (!response.ok) throw new Error('Failed to fetch source data');
+            const source = await response.json();
+            
+            // Format logs for export
+            const exportData = {
+                exported_at: new Date().toISOString(),
+                source_id: sourceId,
+                source_name: source.name,
+                logs: source.recent_activity
+            };
+            
+            // Create and download file
+            const blob = new Blob([JSON.stringify(exportData, null, 2)], { type: 'application/json' });
+            const url = window.URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = `sentinel_source_logs_${sourceId}_${new Date().toISOString().split('T')[0]}.json`;
+            document.body.appendChild(a);
+            a.click();
+            window.URL.revokeObjectURL(url);
+            document.body.removeChild(a);
+            
+        } catch (error) {
+            console.error('Failed to download logs:', error);
+            alert('Failed to download logs. Please try again.');
+        }
+    }
+</script>
+
+<!-- Configure Source Modal -->
+<div class="modal fade" id="configureSourceModal" tabindex="-1">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">Configure Data Source</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <form id="sourceConfigForm" onsubmit="saveSourceConfig(event)">
+                <div class="modal-body">
+                    <div class="mb-3">
+                        <label for="updateFrequency" class="form-label">Update Frequency (hours)</label>
+                        <input type="number" class="form-control" id="updateFrequency" min="1" max="24" required>
+                    </div>
+                    <div class="mb-3">
+                        <label for="maxDaysBack" class="form-label">Maximum Days to Look Back</label>
+                        <input type="number" class="form-control" id="maxDaysBack" min="1" max="90" required>
+                    </div>
+                    <div class="mb-3">
+                        <label for="documentTypes" class="form-label">Document Types</label>
+                        <select class="form-select" id="documentTypes" multiple required>
+                            <option value="Notices">Notices</option>
+                            <option value="Rules">Rules</option>
+                            <option value="Proposed Rules">Proposed Rules</option>
+                            <option value="Reports">Reports</option>
+                            <option value="Other">Other</option>
+                        </select>
+                    </div>
+                    <div class="mb-3">
+                        <label for="rateLimit" class="form-label">Rate Limit (requests per minute)</label>
+                        <input type="number" class="form-control" id="rateLimit" min="1" max="1000" required>
+                    </div>
+                    <div class="mb-3">
+                        <label for="apiVersion" class="form-label">API Version</label>
+                        <input type="text" class="form-control" id="apiVersion">
+                    </div>
+                    <div class="mb-3">
+                        <label for="baseUrl" class="form-label">Base URL</label>
+                        <input type="url" class="form-control" id="baseUrl">
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                    <button type="submit" class="btn btn-primary">Save Configuration</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+{% endblock %} 

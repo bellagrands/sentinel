@@ -1,0 +1,52 @@
+# Sentinel Configuration
+
+# Sources to monitor
+sources:
+  federal_register:
+    enabled: true
+    scan_frequency_hours: 24
+    lookback_days: 7
+  
+  congress:
+    enabled: true
+    scan_frequency_hours: 24
+    lookback_days: 30
+  
+  pacer:
+    enabled: false  # Requires API key and setup
+    scan_frequency_hours: 24
+    lookback_days: 7
+
+# Keywords and terms to monitor
+keywords:
+  - voting rights
+  - civil rights
+  - election
+  - ballot
+  - census
+  - executive power
+  - emergency declaration
+  - citizenship
+  - immigration enforcement
+  - freedom of information
+  - freedom of press
+  - media access
+  - public education
+
+# NLP settings
+nlp:
+  threat_threshold: 0.65
+  similarity_threshold: 0.75
+  summarization_length: 150
+
+# Alert settings
+alerts:
+  email_enabled: false
+  email_recipients: []
+  slack_enabled: false
+  slack_webhook: ""
+  
+# API integration
+openai:
+  api_key: ""  # Set with environment variable OPENAI_API_KEY
+  model: "gpt-4"  # or gpt-3.5-turbo for lower cost
