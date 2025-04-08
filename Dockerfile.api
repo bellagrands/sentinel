@@ -33,6 +33,9 @@ RUN pip install --no-cache-dir \
     pydantic==2.6.3 \
     alembic==1.13.1
 
+# Install spaCy model
+RUN python -m spacy download en_core_web_md
+
 # Copy application code
 COPY . .
 

@@ -13,13 +13,15 @@ import sys
 import time
 from datetime import datetime
 import uvicorn
-from fastapi import FastAPI
+from fastapi import FastAPI, Depends
 from fastapi.middleware.cors import CORSMiddleware
+from sqlalchemy.orm import Session
 from api.api import router as api_router
 from utils.logging_config import setup_logger
 from scripts.collect_documents import main as collect_main
 from scripts.process_documents import main as process_main
 from config import STORAGE_ROOT, DOCUMENT_STORAGE
+from database.db import init_db, get_session
 
 # Add the current directory to the Python path
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
@@ -28,14 +30,10 @@ sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 logger = setup_logger(__name__)
 
 def setup_fastapi() -> FastAPI:
-    """Set up FastAPI application with CORS and routes."""
-    app = FastAPI(
-        title="Sentinel API",
-        description="API for the Sentinel Democracy Watchdog System",
-        version="1.0.0"
-    )
-    
-    # Configure CORS
+    """Set up FastAPI application."""
+    app = FastAPI()
+
+    # Add CORS middleware
     app.add_middleware(
         CORSMiddleware,
         allow_origins=["*"],
@@ -43,10 +41,13 @@ def setup_fastapi() -> FastAPI:
         allow_methods=["*"],
         allow_headers=["*"],
     )
-    
-    # Include API routes with prefix
-    app.include_router(api_router, prefix="/api")
-    
+
+    # Initialize database
+    init_db()
+
+    # Include API router with session dependency
+    app.include_router(api_router, prefix="/api", dependencies=[Depends(get_session)])
+
     return app
 
 def run_collector() -> None:

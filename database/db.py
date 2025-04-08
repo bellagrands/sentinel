@@ -1,22 +1,22 @@
-from flask_sqlalchemy import SQLAlchemy
-from flask_migrate import Migrate
-from sqlalchemy.orm import DeclarativeBase
+from sqlalchemy.orm import DeclarativeBase, sessionmaker
+from sqlalchemy import create_engine
+from database.config import DatabaseConfig
 
 class Base(DeclarativeBase):
     pass
 
-db = SQLAlchemy(model_class=Base)
-migrate = Migrate()
+# Create engine and session factory
+engine = create_engine(DatabaseConfig.get_database_url())
+SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
 
-def init_db(app):
-    """Initialize the database with the Flask app."""
-    from database.config import DatabaseConfig
-    
-    # Configure database
-    app.config.update(DatabaseConfig.get_config())
-    
-    # Initialize extensions
-    db.init_app(app)
-    migrate.init_app(app, db)
-    with app.app_context():
-        db.create_all()
+def get_session():
+    """Get a database session."""
+    session = SessionLocal()
+    try:
+        yield session
+    finally:
+        session.close()
+
+def init_db():
+    """Initialize the database."""
+    Base.metadata.create_all(bind=engine)

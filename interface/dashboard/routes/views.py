@@ -8,7 +8,7 @@ import os
 views_bp = Blueprint('views', __name__)
 
 # Use the Docker service name and port for the API
-API_BASE_URL = "http://api:8000/api"
+API_BASE_URL = os.getenv('API_BASE_URL', 'http://sentinel-api:8000/api')
 
 @views_bp.route('/')
 @require_auth
