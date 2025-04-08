@@ -7,21 +7,12 @@ to classify text according to democratic threat categories.
 """
 
 import os
-import logging
 import json
-from typing import Dict, List, Tuple, Optional, Union, Any
-import numpy as np
+from typing import Dict, Any, List, Optional
+from utils.logging_config import setup_logger
 
-# Configure logging
-logging.basicConfig(
-    level=logging.INFO,
-    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
-    handlers=[
-        logging.FileHandler("logs/text_classifier.log"),
-        logging.StreamHandler()
-    ]
-)
-logger = logging.getLogger(__name__)
+# Set up logging
+logger = setup_logger(__name__)
 
 class TransformerClassifier:
     """Text classifier using transformer models."""

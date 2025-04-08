@@ -1,196 +1,197 @@
 version: '3.8'
 
 services:
-  sentinel:
+  redis:
+    image: redis:latest
+    container_name: sentinel-redis
+    ports:
+      - "6379:6379"
+    networks:
+      - sentinel-network
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 3
+
+  postgres:
+    image: postgres:16
+    container_name: sentinel-postgres
+    environment:
+      POSTGRES_DB: postgres
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    networks:
+      - sentinel-network
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres -d postgres"]
+      interval: 5s
+      timeout: 3s
+      retries: 3
+
+  api:
+    build:
+      context: .
+      dockerfile: Dockerfile.api
+    container_name: sentinel-api
+    ports:
+      - "8000:8000"
+    depends_on:
+      redis:
+        condition: service_healthy
+      postgres:
+        condition: service_healthy
+    networks:
+      - sentinel-network
+    volumes:
+      - ./storage:/app/data
+      - ./logs:/app/logs
+      - ./config.yml:/app/config.yml
+    environment:
+      - PYTHONPATH=/app
+      - DB_USER=postgres
+      - DB_PASSWORD=postgres
+      - DB_HOST=sentinel-postgres
+      - DB_NAME=postgres
+      - DB_PORT=5432
+      - STORAGE_ROOT=/app/data
+      - DOCUMENT_STORAGE=/app/data/documents
+      - REDIS_HOST=sentinel-redis
+      - REDIS_PORT=6379
+
+  dashboard:
+    build:
+      context: .
+      dockerfile: Dockerfile.dashboard
+    container_name: sentinel-dashboard
+    ports:
+      - "5000:5000"
+    depends_on:
+      redis:
+        condition: service_healthy
+      postgres:
+        condition: service_healthy
+      api:
+        condition: service_started
+    networks:
+      - sentinel-network
+    volumes:
+      - ./storage:/app/data
+      - ./logs:/app/logs
+      - ./config.yml:/app/config.yml
+    environment:
+      - FLASK_APP=interface.dashboard:create_app
+      - FLASK_ENV=production
+      - PYTHONPATH=/app
+      - DB_USER=postgres
+      - DB_PASSWORD=postgres
+      - DB_HOST=sentinel-postgres
+      - DB_NAME=postgres
+      - DB_PORT=5432
+      - API_BASE_URL=http://sentinel-api:8000
+      - STORAGE_ROOT=/app/data
+      - DOCUMENT_STORAGE=/app/data/documents
+      - REDIS_HOST=sentinel-redis
+      - REDIS_PORT=6379
+
+  collector:
+    build:
+      context: .
+      dockerfile: Dockerfile.collector
+    container_name: sentinel-collector
+    depends_on:
+      redis:
+        condition: service_healthy
+      postgres:
+        condition: service_healthy
+    networks:
+      - sentinel-network
+    volumes:
+      - ./storage:/app/data
+      - ./logs:/app/logs
+      - ./config.yml:/app/config.yml
+    environment:
+      - PYTHONPATH=/app
+      - DB_USER=postgres
+      - DB_PASSWORD=postgres
+      - DB_HOST=sentinel-postgres
+      - DB_NAME=postgres
+      - DB_PORT=5432
+      - STORAGE_ROOT=/app/data
+      - DOCUMENT_STORAGE=/app/data/documents
+      - REDIS_HOST=sentinel-redis
+      - REDIS_PORT=6379
+
+  processor:
+    build:
+      context: .
+      dockerfile: Dockerfile.processor
+    container_name: sentinel-processor
+    depends_on:
+      redis:
+        condition: service_healthy
+      postgres:
+        condition: service_healthy
+    networks:
+      - sentinel-network
+    volumes:
+      - ./storage:/app/data
+      - ./logs:/app/logs
+      - ./config.yml:/app/config.yml
+    environment:
+      - PYTHONPATH=/app
+      - DB_USER=postgres
+      - DB_PASSWORD=postgres
+      - DB_HOST=sentinel-postgres
+      - DB_NAME=postgres
+      - DB_PORT=5432
+      - STORAGE_ROOT=/app/data
+      - DOCUMENT_STORAGE=/app/data/documents
+      - REDIS_HOST=sentinel-redis
+      - REDIS_PORT=6379
+
+  watchdog:
     build:
       context: .
       dockerfile: Dockerfile.watchdog
     container_name: sentinel-watchdog
-    ports:
-      - "8000:8000"
-    volumes:
-      - ./data:/app/data
-      - ./logs:/app/logs
-      - ./alerts:/app/alerts
-      - ./.env:/app/.env
-      - ./config.yaml:/app/config.yaml
-    env_file:
-      - .env
-    restart: unless-stopped
-    command: python main.py --all
-    networks:
-      - sentinel-network
-
-  # Uncomment to add a scheduler service for regular runs
-  # scheduler:
-  #   build:
-  #     context: .
-  #     dockerfile: Dockerfile
-  #   container_name: sentinel-scheduler
-  #   volumes:
-  #     - ./data:/app/data
-  #     - ./logs:/app/logs
-  #     - ./alerts:/app/alerts
-  #     - ./.env:/app/.env
-  #     - ./config.yaml:/app/config.yaml
-  #   env_file:
-  #     - .env
-  #   restart: unless-stopped
-  #   command: >
-  #     sh -c "echo '0 */6 * * * python /app/main.py --collect-only >> /app/logs/collect.log 2>&1' > /etc/crontabs/root &&
-  #            echo '30 */6 * * * python /app/main.py --analyze-only >> /app/logs/analyze.log 2>&1' >> /etc/crontabs/root &&
-  #            echo '45 */6 * * * python /app/main.py --alerts-only >> /app/logs/alerts.log 2>&1' >> /etc/crontabs/root &&
-  #            crond -f"
-
-  # Uncomment to add a simple web dashboard (requires implementing a web interface)
-  # dashboard:
-  #   build:
-  #     context: .
-  #     dockerfile: Dockerfile.web
-  #   container_name: sentinel-dashboard
-  #   ports:
-  #     - "8080:8080"
-  #   volumes:
-  #     - ./data:/app/data
-  #     - ./logs:/app/logs
-  #     - ./alerts:/app/alerts
-  #     - ./.env:/app/.env
-  #     - ./config.yaml:/app/config.yaml
-  #   env_file:
-  #     - .env
-  #   restart: unless-stopped
-  #   depends_on:
-  #     - sentinel
-  #   command: python web_dashboard.py
-
-  # Web Dashboard
-  dashboard:
-    build:
-      context: .
-      dockerfile: Dockerfile
-    image: sentinel-dashboard
-    container_name: sentinel-dashboard
-    restart: always
-    ports:
-      - "5000:5000"
-    volumes:
-      - ./:/app
-    environment:
-      - FLASK_APP=interface/dashboard/__init__.py
-      - FLASK_ENV=development
-      - PYTHONPATH=/app
-    command: flask run --host=0.0.0.0
-    networks:
-      - sentinel-network
-
-  # Add Redis for caching (optional but recommended)
-  redis:
-    image: redis:alpine
-    container_name: sentinel-redis
-    restart: always
-    ports:
-      - "6379:6379"
-    volumes:
-      - redis-data:/data
-    healthcheck:
-      test: ["CMD", "redis-cli", "ping"]
-      interval: 30s
-      timeout: 10s
-      retries: 3
-    deploy:
-      resources:
-        limits:
-          memory: 512M
-    networks:
-      - sentinel-network
-
-  # Document Processing Service (for scheduled tasks)
-  processor:
-    build:
-      context: .
-      dockerfile: Dockerfile
-    image: sentinel-processor
-    container_name: sentinel-processor
-    command: python -m scripts.process_documents
-    restart: always
     depends_on:
       redis:
         condition: service_healthy
-    volumes:
-      - ./data:/app/data
-      - ./logs:/app/logs
-    environment:
-      - TZ=UTC
-      - PYTHONPATH=/app
-      - REDIS_HOST=redis
-      - REDIS_PORT=6379
-      - RUNNING_IN_CONTAINER=true
-      # Add any API keys or credentials as environment variables
-      # - CONGRESS_API_KEY=${CONGRESS_API_KEY}
-      # - PACER_USERNAME=${PACER_USERNAME}
-      # - PACER_PASSWORD=${PACER_PASSWORD}
-      # - OPENAI_API_KEY=${OPENAI_API_KEY}
-    deploy:
-      resources:
-        limits:
-          memory: 4G
-        reservations:
-          memory: 1G
-    networks:
-      - sentinel-network
-
-  # Periodic Data Collection Service
-  collector:
-    build:
-      context: .
-      dockerfile: Dockerfile
-    image: sentinel-collector
-    container_name: sentinel-collector
-    command: python -m scripts.collect_documents
-    restart: always
-    depends_on:
-      redis:
+      postgres:
         condition: service_healthy
-    volumes:
-      - ./data:/app/data
-      - ./logs:/app/logs
-    environment:
-      - TZ=UTC
-      - PYTHONPATH=/app
-      - REDIS_HOST=redis
-      - REDIS_PORT=6379
-      - SCHEDULE_INTERVAL=86400  # Collect data every 24 hours
-      - RUNNING_IN_CONTAINER=true
-      # Add any API keys or credentials as environment variables
-      # - CONGRESS_API_KEY=${CONGRESS_API_KEY}
-      # - PACER_USERNAME=${PACER_USERNAME}
-      # - PACER_PASSWORD=${PACER_PASSWORD}
-    deploy:
-      resources:
-        limits:
-          memory: 2G
-        reservations:
-          memory: 512M
     networks:
       - sentinel-network
+    volumes:
+      - ./storage:/app/data
+      - ./logs:/app/logs
+      - ./config.yml:/app/config.yml
+    environment:
+      - PYTHONPATH=/app
+      - DB_USER=postgres
+      - DB_PASSWORD=postgres
+      - DB_HOST=sentinel-postgres
+      - DB_NAME=postgres
+      - DB_PORT=5432
+      - STORAGE_ROOT=/app/data
+      - DOCUMENT_STORAGE=/app/data/documents
+      - REDIS_HOST=sentinel-redis
+      - REDIS_PORT=6379
 
   playwright:
     image: mcr.microsoft.com/playwright:v1.42.1
-    volumes:
-      - ./:/app
-    working_dir: /app
-    depends_on:
-      - dashboard
+    container_name: sentinel-playwright
     networks:
       - sentinel-network
 
 volumes:
-  data:
-  logs:
-  alerts:
-  redis-data:
-    driver: local
+  postgres_data:
+    name: sentinel_postgres_data
 
 networks:
   sentinel-network:
-    driver: bridge
+    name: sentinel_sentinel-network

@@ -1,7 +1,7 @@
 from flask import Blueprint, request, jsonify, render_template, redirect, url_for, flash
-from ..utils.auth import authenticate_user, generate_token
-from ..database import Session
-from ..models.user import User
+from flask_login import login_user, logout_user, login_required, current_user
+from database.db import db
+from database.models.user import User
 from datetime import datetime
 
 bp = Blueprint('auth', __name__)
@@ -9,6 +9,9 @@ bp = Blueprint('auth', __name__)
 @bp.route('/login', methods=['GET', 'POST'])
 def login():
     """Handle login page and form submission."""
+    if current_user.is_authenticated:
+        return redirect(url_for('views.index'))
+
     if request.method == 'GET':
         return render_template('login.html')
         
@@ -20,16 +23,22 @@ def login():
         if not username or not password:
             return jsonify({'error': 'Username and password are required'}), 400
             
-        user_id = authenticate_user(username, password)
-        if user_id:
-            token = generate_token(user_id)
-            return jsonify({'token': token})
+        user = User.query.filter_by(username=username).first()
+        if user and user.verify_password(password):
+            login_user(user)
+            return jsonify({
+                'message': 'Login successful',
+                'user': user.to_dict()
+            })
         else:
             return jsonify({'error': 'Invalid username or password'}), 401
 
 @bp.route('/register', methods=['GET', 'POST'])
 def register():
     """Handle user registration."""
+    if current_user.is_authenticated:
+        return redirect(url_for('views.index'))
+
     if request.method == 'GET':
         return render_template('register.html')
         
@@ -42,12 +51,11 @@ def register():
         if not all([username, email, password]):
             return jsonify({'error': 'All fields are required'}), 400
             
-        session = Session()
         try:
             # Check if username or email already exists
-            if session.query(User).filter_by(username=username).first():
+            if User.query.filter_by(username=username).first():
                 return jsonify({'error': 'Username already exists'}), 400
-            if session.query(User).filter_by(email=email).first():
+            if User.query.filter_by(email=email).first():
                 return jsonify({'error': 'Email already exists'}), 400
                 
             # Create new user
@@ -60,46 +68,38 @@ def register():
             )
             user.set_password(password)
             
-            session.add(user)
-            session.commit()
+            db.session.add(user)
+            db.session.commit()
             
-            # Generate token for immediate login
-            token = generate_token(str(user.id))
+            # Log in the new user
+            login_user(user)
             return jsonify({
                 'message': 'Registration successful',
-                'token': token
+                'user': user.to_dict()
             })
             
         except Exception as e:
-            session.rollback()
+            db.session.rollback()
             return jsonify({'error': str(e)}), 500
-        finally:
-            session.close()
 
 @bp.route('/logout', methods=['POST'])
+@login_required
 def logout():
     """Handle user logout."""
-    # Frontend should remove the token
+    logout_user()
     return jsonify({'message': 'Logged out successfully'})
 
 @bp.route('/profile', methods=['GET', 'PUT'])
+@login_required
 def profile():
     """Handle user profile operations."""
     if request.method == 'GET':
-        session = Session()
-        try:
-            user = session.query(User).filter_by(id=int(request.user_id)).first()
-            if not user:
-                return jsonify({'error': 'User not found'}), 404
-            return jsonify(user.to_dict())
-        finally:
-            session.close()
+        return jsonify(current_user.to_dict())
             
     if request.method == 'PUT':
         data = request.get_json()
-        session = Session()
         try:
-            user = session.query(User).filter_by(id=int(request.user_id)).first()
+            user = User.query.get(current_user.id)
             if not user:
                 return jsonify({'error': 'User not found'}), 404
                 
@@ -109,11 +109,9 @@ def profile():
             if 'password' in data:
                 user.set_password(data['password'])
                 
-            session.commit()
+            db.session.commit()
             return jsonify({'message': 'Profile updated successfully'})
             
         except Exception as e:
-            session.rollback()
-            return jsonify({'error': str(e)}), 500
-        finally:
-            session.close() 
+            db.session.rollback()
+            return jsonify({'error': str(e)}), 500 

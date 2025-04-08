@@ -21,13 +21,14 @@ import re
 import sys
 import time
 import traceback
+import spacy
+from spacy.tokens import Doc, Span
+from spacy.matcher import PhraseMatcher, Matcher
+from spacy.language import Language
+from utils.logging_config import setup_logger
 
-# Configure logging
-logging.basicConfig(
-    level=logging.INFO,
-    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
-)
-logger = logging.getLogger(__name__)
+# Set up logging
+logger = setup_logger(__name__)
 
 # Add file handler only if running outside container or if directory is writable
 log_handlers = []
@@ -59,11 +60,6 @@ except Exception as e:
 
 # Attempt to load spaCy - install if not available
 try:
-    import spacy
-    from spacy.tokens import Doc, Span
-    from spacy.matcher import PhraseMatcher, Matcher
-    from spacy.language import Language
-    
     try:
         nlp = spacy.load("en_core_web_md")
         logger.info("Loaded spaCy model: en_core_web_md")

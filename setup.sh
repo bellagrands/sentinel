@@ -56,7 +56,7 @@ EOL
 
 # Create initial config file
 echo "Creating initial config file..."
-cat > config.yaml << EOL
+cat > config.yml << EOL
 # Sentinel Configuration
 
 # Sources to monitor
@@ -137,7 +137,7 @@ EOL
 
 echo "Setup complete! Next steps:"
 echo "1. Edit the .env file to add your API keys"
-echo "2. Review and customize config.yaml as needed"
+echo "2. Review and customize config.yml as needed"
 echo "3. Run 'python main.py' to start Sentinel"
 
 if [ "$1" != "--docker" ]; then

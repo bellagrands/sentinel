@@ -8,24 +8,15 @@ document summarization, question answering, and contextual analysis.
 
 import os
 import json
-import logging
-import openai
-from typing import Dict, List, Any, Optional
+from typing import Dict, Any, List, Optional
 from dotenv import load_dotenv
+from utils.logging_config import setup_logger
 
 # Load environment variables
 load_dotenv()
 
-# Configure logging
-logging.basicConfig(
-    level=logging.INFO,
-    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
-    handlers=[
-        logging.FileHandler("logs/chat_integration.log"),
-        logging.StreamHandler()
-    ]
-)
-logger = logging.getLogger(__name__)
+# Set up logging
+logger = setup_logger(__name__)
 
 # Set up OpenAI API
 openai.api_key = os.getenv("OPENAI_API_KEY")
@@ -33,7 +24,7 @@ openai.api_key = os.getenv("OPENAI_API_KEY")
 class ChatIntegration:
     """Integration with OpenAI's GPT API for enhanced document analysis."""
     
-    def __init__(self, config_path: str = "config.yaml"):
+    def __init__(self, config_path: str = "config.yml"):
         """Initialize the chat integration with configuration."""
         import yaml
         

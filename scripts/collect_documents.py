@@ -16,16 +16,14 @@ import time
 from datetime import datetime, timedelta
 from pathlib import Path
 from typing import Dict, List, Any, Optional
+import yaml
+from utils.logging_config import setup_logger
 
 # Add parent directory to path for imports
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 
-# Configure logging with fallback to console if file logging fails
-logging.basicConfig(
-    level=logging.INFO,
-    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
-)
-logger = logging.getLogger(__name__)
+# Set up logging
+logger = setup_logger(__name__)
 
 # Add file handler only if directory is writable
 try:
@@ -88,30 +86,13 @@ DEFAULT_CONFIG = {
 }
 
 def load_config() -> Dict[str, Any]:
-    """Load configuration from environment variables or config file."""
-    config = DEFAULT_CONFIG.copy()
-    
-    # Override with environment variables if available
-    if os.environ.get("SCHEDULE_INTERVAL"):
-        config["schedule"]["interval_seconds"] = int(os.environ.get("SCHEDULE_INTERVAL"))
-    
-    # Try to load from config file
-    config_path = os.path.join("config", "collector_config.json")
+    """Load configuration from config.yml."""
     try:
-        if os.path.exists(config_path):
-            with open(config_path, 'r') as f:
-                file_config = json.load(f)
-                # Merge configs (this is a simple approach, might need deeper merging)
-                for key, value in file_config.items():
-                    if key in config:
-                        if isinstance(value, dict) and isinstance(config[key], dict):
-                            config[key].update(value)
-                        else:
-                            config[key] = value
+        with open('config.yml', 'r') as f:
+            return yaml.safe_load(f)
     except Exception as e:
-        logger.error(f"Error loading config file: {e}")
-    
-    return config
+        logger.error(f"Error loading config: {e}")
+        return None
 
 def collect_from_pacer(config: Dict[str, Any]) -> int:
     """
@@ -237,10 +218,10 @@ def should_run_now(config: Dict[str, Any]) -> bool:
         return True
     
     # Get last run time
-    last_run_path = os.path.join("data", "collector_last_run.txt")
+    last_run_file = os.path.join("data", "last_collection.txt")
     try:
-        if os.path.exists(last_run_path):
-            with open(last_run_path, 'r') as f:
+        if os.path.exists(last_run_file):
+            with open(last_run_file, 'r') as f:
                 last_run_str = f.read().strip()
                 last_run = datetime.fromisoformat(last_run_str)
                 
@@ -258,10 +239,10 @@ def should_run_now(config: Dict[str, Any]) -> bool:
 
 def update_last_run_time():
     """Update the last run timestamp file."""
-    last_run_path = os.path.join("data", "collector_last_run.txt")
+    last_run_file = os.path.join("data", "last_collection.txt")
     try:
-        os.makedirs(os.path.dirname(last_run_path), exist_ok=True)
-        with open(last_run_path, 'w') as f:
+        os.makedirs(os.path.dirname(last_run_file), exist_ok=True)
+        with open(last_run_file, 'w') as f:
             f.write(datetime.now().isoformat())
     except Exception as e:
         logger.error(f"Error updating last run time: {e}")
@@ -272,7 +253,10 @@ def main():
     
     # Load configuration
     config = load_config()
-    logger.info(f"Loaded configuration with {len(config['sources'])} sources")
+    if not config:
+        return
+    
+    logger.info(f"Loaded configuration with {len(config.get('sources', []))} sources")
     
     # Check if we should run based on schedule
     if not should_run_now(config):

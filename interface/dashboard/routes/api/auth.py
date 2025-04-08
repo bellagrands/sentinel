@@ -1,12 +1,12 @@
-from flask import Blueprint, request, jsonify
-from ...utils.auth import authenticate_user, generate_token
-from ...database import Session
+from flask import Blueprint, request, jsonify, make_response
+from ...utils.auth import authenticate_user, create_token, require_auth
+from ...database import db_session
 from ...models.user import User
 from email_validator import validate_email, EmailNotValidError
 
-auth_bp = Blueprint('auth', __name__)
+bp = Blueprint('auth', __name__, url_prefix='/api/auth')
 
-@auth_bp.route('/api/auth/register', methods=['POST'])
+@bp.route('/register', methods=['POST'])
 def register():
     """Handle user registration."""
     try:
@@ -34,49 +34,41 @@ def register():
                 'error': 'Password must be at least 8 characters long'
             }), 400
             
-        session = Session()
-        try:
-            # Check if username or email already exists
-            if session.query(User).filter_by(username=username).first():
-                return jsonify({
-                    'error': 'Username already taken'
-                }), 400
-                
-            if session.query(User).filter_by(email=email).first():
-                return jsonify({
-                    'error': 'Email already registered'
-                }), 400
-            
-            # Create new user
-            user = User(
-                username=username,
-                email=email,
-                role='user',
-                is_active=True
-            )
-            user.set_password(password)
-            
-            session.add(user)
-            session.commit()
-            
-            # Generate token for immediate login
-            token = generate_token(str(user.id))
-            
-            return jsonify({
-                'token': token,
-                'expires_in': 24 * 3600,  # 24 hours in seconds
-                'user': user.to_dict()
-            })
-            
-        finally:
-            session.close()
-            
+        if db_session.query(User).filter_by(username=username).first():
+            return jsonify({'error': 'Username already exists'}), 400
+        
+        user = User(
+            username=username,
+            email=email,
+            role='user',
+            is_active=True
+        )
+        user.set_password(password)
+        
+        db_session.add(user)
+        db_session.commit()
+        
+        token = create_token(user.id)
+        
+        response = make_response(jsonify({
+            'message': 'User created successfully',
+            'user': {
+                'id': user.id,
+                'username': user.username
+            },
+            'token': token,
+            'expires_in': 3600  # 1 hour
+        }))
+        response.headers['Authorization'] = f'Bearer {token}'
+        return response
+        
     except Exception as e:
+        db_session.rollback()
         return jsonify({
             'error': str(e)
         }), 500
 
-@auth_bp.route('/api/auth/login', methods=['POST'])
+@bp.route('/login', methods=['POST'])
 def login():
     """Handle user login and return JWT token."""
     try:
@@ -89,29 +81,39 @@ def login():
         username = data['username']
         password = data['password']
         
-        # Authenticate user
-        user_id = authenticate_user(username, password)
-        if not user_id:
-            return jsonify({
-                'error': 'Invalid credentials'
-            }), 401
-            
-        # Generate JWT token
-        token = generate_token(user_id)
+        user = authenticate_user(username, password)
+        if not user:
+            return jsonify({'error': 'Invalid username or password'}), 401
         
-        # Get user details
-        session = Session()
-        try:
-            user = session.query(User).filter_by(id=int(user_id)).first()
-            return jsonify({
-                'token': token,
-                'expires_in': 24 * 3600,  # 24 hours in seconds
-                'user': user.to_dict()
-            })
-        finally:
-            session.close()
+        token = create_token(user)
+        
+        response = make_response(jsonify({
+            'message': 'Login successful',
+            'user': {
+                'id': user,
+                'username': username
+            },
+            'token': token,
+            'expires_in': 3600  # 1 hour
+        }))
+        response.headers['Authorization'] = f'Bearer {token}'
+        return response
         
     except Exception as e:
         return jsonify({
             'error': str(e)
-        }), 500 
+        }), 500
+
+@bp.route('/logout', methods=['POST'])
+@require_auth
+def logout():
+    # In a more complex implementation, you might want to invalidate the token
+    # For now, we'll just return a success response since the client will remove the token
+    return jsonify({'message': 'Logged out successfully'})
+
+@bp.route('/check', methods=['GET'])
+@require_auth
+def check_auth():
+    # The @require_auth decorator already checks if the token is valid
+    # If we get here, the token is valid
+    return jsonify({'message': 'Token is valid'}) 

@@ -57,7 +57,7 @@ The State Legislature integration allows Sentinel to monitor and analyze legisla
 
 ## Configuration Options
 
-The following options can be configured in your `config.yaml`:
+The following options can be configured in your `config.yml`:
 
 ```yaml
 state_legislature:

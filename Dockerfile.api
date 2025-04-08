@@ -1,0 +1,68 @@
+FROM python:3.11-slim
+
+LABEL maintainer="Sentinel Project Team"
+LABEL description="Sentinel Democracy Watchdog System - API Service"
+
+# Set working directory
+WORKDIR /app
+
+# Install system dependencies
+RUN apt-get update && apt-get install -y \
+    build-essential \
+    libpq-dev \
+    netcat-traditional \
+    && rm -rf /var/lib/apt/lists/*
+
+# Create non-root user
+RUN groupadd -r sentinel && useradd -r -g sentinel sentinel
+
+# Copy requirements first for better caching
+COPY requirements.txt .
+
+# Install Python dependencies
+RUN pip install --no-cache-dir -r requirements.txt
+
+# Install additional dependencies
+RUN pip install --no-cache-dir \
+    fastapi==0.110.0 \
+    uvicorn==0.27.1 \
+    python-multipart==0.0.9 \
+    sqlalchemy==2.0.28 \
+    psycopg2-binary==2.9.9 \
+    redis==5.0.2 \
+    pydantic==2.6.3 \
+    alembic==1.13.1
+
+# Copy application code
+COPY . .
+
+# Create necessary directories and set permissions
+RUN mkdir -p /app/data /app/logs /app/data/documents && \
+    chown -R sentinel:sentinel /app && \
+    chmod -R 755 /app && \
+    chmod 777 /app/logs
+
+# Set Python path to include the application root
+ENV PYTHONPATH=/app:${PYTHONPATH}
+
+# Create startup script
+RUN echo '#!/bin/bash' > /app/start.sh && \
+    echo 'echo "Waiting for PostgreSQL..."' >> /app/start.sh && \
+    echo 'while ! nc -z sentinel-postgres 5432; do' >> /app/start.sh && \
+    echo '  sleep 1' >> /app/start.sh && \
+    echo 'done' >> /app/start.sh && \
+    echo 'echo "PostgreSQL is up"' >> /app/start.sh && \
+    echo 'echo "Running database migrations..."' >> /app/start.sh && \
+    echo 'flask db upgrade' >> /app/start.sh && \
+    echo 'echo "Starting API service..."' >> /app/start.sh && \
+    echo 'python -m interface.main --mode api' >> /app/start.sh && \
+    chmod +x /app/start.sh
+
+# Switch to non-root user
+USER sentinel
+
+# Expose port
+EXPOSE 8000
+
+# Command to run the application
+CMD ["/app/start.sh"] 

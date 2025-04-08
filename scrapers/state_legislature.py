@@ -3,17 +3,12 @@ import requests
 import os
 import logging
 from datetime import datetime, timedelta
+import json
+from typing import List, Dict, Any
+from utils.logging_config import setup_logger
 
 # Set up logging
-logging.basicConfig(
-    level=logging.INFO,
-    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
-    handlers=[
-        logging.FileHandler("logs/state_legislature.log"),
-        logging.StreamHandler()
-    ]
-)
-logger = logging.getLogger(__name__)
+logger = setup_logger(__name__)
 
 def get_state_legislation(states=None, days_back=30, keywords=None):
     """
@@ -170,6 +165,64 @@ def get_state_legislation(states=None, days_back=30, keywords=None):
     
     logger.info(f"State legislation search complete. Found {len(results)} bills")
     return results
+
+def get_state_documents(config: Dict[str, Any]) -> List[Dict[str, Any]]:
+    """
+    Get documents from state legislatures.
+    
+    Args:
+        config (Dict[str, Any]): Configuration for state legislature scraping
+        
+    Returns:
+        List[Dict[str, Any]]: List of documents
+    """
+    try:
+        # This is a placeholder - implement actual state legislature scraping
+        logger.info("Getting documents from state legislatures")
+        
+        # Example document structure
+        docs = [{
+            'id': 'EXAMPLE_STATE_001',
+            'source': 'state_legislature',
+            'title': 'Example State Bill',
+            'text': 'This is an example state legislature document...',
+            'url': 'https://legislature.example.com/bill/001',
+            'metadata': {
+                'state': 'Example State',
+                'bill_number': 'HB123',
+                'filing_date': datetime.now().isoformat()
+            }
+        }]
+        
+        return docs
+        
+    except Exception as e:
+        logger.error(f"Error getting state legislature documents: {e}")
+        return []
+
+def save_state_results(docs: List[Dict[str, Any]]) -> None:
+    """
+    Save state legislature documents to the data directory.
+    
+    Args:
+        docs (List[Dict[str, Any]]): List of documents to save
+    """
+    try:
+        # Create documents directory if it doesn't exist
+        os.makedirs('data/documents', exist_ok=True)
+        
+        # Save each document
+        for doc in docs:
+            filename = f"state_{doc['id']}.json"
+            filepath = os.path.join('data', 'documents', filename)
+            
+            with open(filepath, 'w') as f:
+                json.dump(doc, f, indent=2)
+            
+            logger.info(f"Saved state legislature document: {filename}")
+            
+    except Exception as e:
+        logger.error(f"Error saving state legislature results: {e}")
 
 # If the module is run directly, perform a test
 if __name__ == "__main__":

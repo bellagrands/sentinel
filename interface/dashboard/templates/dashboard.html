@@ -1,67 +1,275 @@
-<!DOCTYPE html>
-<html lang="en">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Sentinel Dashboard</title>
-    
-    <!-- Bootstrap CSS -->
-    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
-    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.0/font/bootstrap-icons.css">
-    
-    <!-- Custom CSS -->
-    <style>
-        body {
-            padding-top: 20px;
-            background-color: #f8f9fa;
-        }
-        .container {
-            max-width: 1400px;
-        }
-    </style>
-</head>
-<body>
-    <div class="container">
-        <div class="row mb-4">
-            <div class="col">
-                <h1>Sentinel Dashboard</h1>
-            </div>
-        </div>
+{% extends "base.html" %}
 
-        <div class="row">
-            <div class="col-12">
-                {% include 'components/congress_documents.html' %}
+{% block title %}Dashboard - Sentinel{% endblock %}
+
+{% block content %}
+<div class="container-fluid mt-4">
+    <div class="row">
+        <div class="col-md-12">
+            <div class="d-flex justify-content-between flex-wrap flex-md-nowrap align-items-center pb-2 mb-3 border-bottom">
+                <h1 class="h2">Dashboard</h1>
+                <div class="btn-toolbar mb-2 mb-md-0">
+                    <div class="btn-group me-2">
+                        <button type="button" class="btn btn-sm btn-outline-secondary">
+                            <i class="fas fa-download me-1"></i>Export
+                        </button>
+                    </div>
+                    <button type="button" class="btn btn-sm btn-outline-secondary dropdown-toggle">
+                        <i class="fas fa-calendar me-1"></i>This week
+                    </button>
+                </div>
             </div>
         </div>
     </div>
 
-    <!-- Bootstrap JS -->
-    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
-
-    <!-- Alert Component -->
-    <div class="toast-container position-fixed bottom-0 end-0 p-3">
-        <div id="alertToast" class="toast" role="alert" aria-live="assertive" aria-atomic="true">
-            <div class="toast-header">
-                <strong class="me-auto">Notification</strong>
-                <button type="button" class="btn-close" data-bs-dismiss="toast" aria-label="Close"></button>
+    <!-- Stats Overview -->
+    <div class="row mb-4">
+        <div class="col-xl-3 col-md-6">
+            <div class="card border-left-primary shadow h-100 py-2">
+                <div class="card-body">
+                    <div class="row no-gutters align-items-center">
+                        <div class="col mr-2">
+                            <div class="text-xs font-weight-bold text-primary text-uppercase mb-1">
+                                Total Documents
+                            </div>
+                            <div class="h5 mb-0 font-weight-bold text-gray-800" id="totalDocuments">0</div>
+                        </div>
+                        <div class="col-auto">
+                            <i class="fas fa-file-alt fa-2x text-gray-300"></i>
+                        </div>
+                    </div>
+                </div>
             </div>
-            <div class="toast-body"></div>
+        </div>
+
+        <div class="col-xl-3 col-md-6">
+            <div class="card border-left-success shadow h-100 py-2">
+                <div class="card-body">
+                    <div class="row no-gutters align-items-center">
+                        <div class="col mr-2">
+                            <div class="text-xs font-weight-bold text-success text-uppercase mb-1">
+                                Active Alerts
+                            </div>
+                            <div class="h5 mb-0 font-weight-bold text-gray-800" id="activeAlerts">0</div>
+                        </div>
+                        <div class="col-auto">
+                            <i class="fas fa-bell fa-2x text-gray-300"></i>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="col-xl-3 col-md-6">
+            <div class="card border-left-warning shadow h-100 py-2">
+                <div class="card-body">
+                    <div class="row no-gutters align-items-center">
+                        <div class="col mr-2">
+                            <div class="text-xs font-weight-bold text-warning text-uppercase mb-1">
+                                High Threats
+                            </div>
+                            <div class="h5 mb-0 font-weight-bold text-gray-800" id="highThreats">0</div>
+                        </div>
+                        <div class="col-auto">
+                            <i class="fas fa-exclamation-triangle fa-2x text-gray-300"></i>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="col-xl-3 col-md-6">
+            <div class="card border-left-info shadow h-100 py-2">
+                <div class="card-body">
+                    <div class="row no-gutters align-items-center">
+                        <div class="col mr-2">
+                            <div class="text-xs font-weight-bold text-info text-uppercase mb-1">
+                                Average Threat Score
+                            </div>
+                            <div class="h5 mb-0 font-weight-bold text-gray-800" id="avgThreatScore">0.00</div>
+                        </div>
+                        <div class="col-auto">
+                            <i class="fas fa-chart-line fa-2x text-gray-300"></i>
+                        </div>
+                    </div>
+                </div>
+            </div>
         </div>
     </div>
 
-    <script>
-        // Show alert function
-        function showAlert(type, message) {
-            const toast = document.getElementById('alertToast');
-            const toastBody = toast.querySelector('.toast-body');
-            
-            toast.classList.remove('bg-success', 'bg-danger');
-            toast.classList.add(`bg-${type}`);
-            toastBody.textContent = message;
-            
-            const bsToast = new bootstrap.Toast(toast);
-            bsToast.show();
+    <!-- Charts -->
+    <div class="row mb-4">
+        <div class="col-xl-8">
+            <div class="card shadow mb-4">
+                <div class="card-header py-3">
+                    <h6 class="m-0 font-weight-bold text-primary">Threat Timeline</h6>
+                </div>
+                <div class="card-body">
+                    <canvas id="threatTimelineChart"></canvas>
+                </div>
+            </div>
+        </div>
+
+        <div class="col-xl-4">
+            <div class="card shadow mb-4">
+                <div class="card-header py-3">
+                    <h6 class="m-0 font-weight-bold text-primary">Threat Categories</h6>
+                </div>
+                <div class="card-body">
+                    <canvas id="threatCategoriesChart"></canvas>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Recent Alerts Table -->
+    <div class="row">
+        <div class="col-12">
+            <div class="card shadow mb-4">
+                <div class="card-header py-3">
+                    <h6 class="m-0 font-weight-bold text-primary">Recent Alerts</h6>
+                </div>
+                <div class="card-body">
+                    <div class="table-responsive">
+                        <table class="table table-hover" id="alertsTable">
+                            <thead>
+                                <tr>
+                                    <th>Date</th>
+                                    <th>Title</th>
+                                    <th>Source</th>
+                                    <th>Threat Score</th>
+                                    <th>Categories</th>
+                                    <th>Actions</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                <!-- Alerts will be populated dynamically -->
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+<script>
+// Function to load dashboard data
+async function loadDashboardData() {
+    try {
+        const token = localStorage.getItem('auth_token');
+        if (!token) {
+            window.location.href = '/login';
+            return;
         }
-    </script>
-</body>
-</html> 
+
+        const response = await fetch('/api/stats', {
+            headers: {
+                'Authorization': `Bearer ${token}`
+            }
+        });
+
+        if (!response.ok) {
+            throw new Error('Failed to load dashboard data');
+        }
+
+        const data = await response.json();
+        updateDashboard(data);
+    } catch (error) {
+        console.error('Error loading dashboard data:', error);
+    }
+}
+
+// Function to update dashboard with data
+function updateDashboard(data) {
+    // Update stats
+    document.getElementById('totalDocuments').textContent = data.total_documents;
+    document.getElementById('activeAlerts').textContent = data.active_alerts;
+    document.getElementById('highThreats').textContent = data.high_threats;
+    document.getElementById('avgThreatScore').textContent = data.avg_threat_score.toFixed(2);
+
+    // Update threat timeline chart
+    new Chart(document.getElementById('threatTimelineChart'), {
+        type: 'line',
+        data: {
+            labels: data.threat_timeline.map(item => item.date),
+            datasets: [{
+                label: 'Threat Score',
+                data: data.threat_timeline.map(item => item.score),
+                borderColor: 'rgb(75, 192, 192)',
+                tension: 0.1
+            }]
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: false
+        }
+    });
+
+    // Update threat categories chart
+    new Chart(document.getElementById('threatCategoriesChart'), {
+        type: 'doughnut',
+        data: {
+            labels: data.threat_categories.map(item => item.name),
+            datasets: [{
+                data: data.threat_categories.map(item => item.count),
+                backgroundColor: [
+                    'rgb(255, 99, 132)',
+                    'rgb(54, 162, 235)',
+                    'rgb(255, 205, 86)',
+                    'rgb(75, 192, 192)',
+                    'rgb(153, 102, 255)'
+                ]
+            }]
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: false
+        }
+    });
+
+    // Update alerts table
+    const alertsTableBody = document.querySelector('#alertsTable tbody');
+    alertsTableBody.innerHTML = data.recent_alerts.map(alert => `
+        <tr>
+            <td>${alert.date}</td>
+            <td>${alert.title}</td>
+            <td>${alert.source}</td>
+            <td>
+                <span class="badge bg-${getThreatBadgeColor(alert.threat_score)}">
+                    ${alert.threat_score.toFixed(2)}
+                </span>
+            </td>
+            <td>
+                ${alert.categories.map(cat => `
+                    <span class="badge bg-info">${cat.name}</span>
+                `).join(' ')}
+            </td>
+            <td>
+                <button class="btn btn-sm btn-primary" onclick="viewAlert(${alert.id})">
+                    <i class="fas fa-eye"></i>
+                </button>
+            </td>
+        </tr>
+    `).join('');
+}
+
+// Helper function to determine threat badge color
+function getThreatBadgeColor(score) {
+    if (score >= 0.7) return 'danger';
+    if (score >= 0.4) return 'warning';
+    return 'success';
+}
+
+// Function to view alert details
+function viewAlert(alertId) {
+    window.location.href = `/alerts/${alertId}`;
+}
+
+// Load dashboard data when page loads
+document.addEventListener('DOMContentLoaded', loadDashboardData);
+</script>
+{% endblock %} 

@@ -12,97 +12,95 @@ from datetime import datetime
 from typing import Dict, List, Optional, Any
 
 from ..data_sources import DataSource, DataSourceConfig, DataSourceActivity
+from database.db import db
+from database.models import Document, CollectionStatus, SourceConfig
 
 logger = logging.getLogger(__name__)
 
 class BaseCollector(abc.ABC):
     """Base class for data source collectors."""
     
-    def __init__(self, source_id: str, config: DataSourceConfig):
-        """Initialize the collector.
-        
-        Args:
-            source_id: Unique identifier for the data source
-            config: Configuration for the data source
-        """
+    def __init__(self, source_id: str):
         self.source_id = source_id
-        self.config = config
-        self.data_dir = self._get_data_dir()
+        self.storage_dir = f"storage/documents/{source_id}"
+        os.makedirs(self.storage_dir, exist_ok=True)
         
-        # Ensure data directories exist
-        os.makedirs(self.data_dir, exist_ok=True)
-        os.makedirs("/alerts", exist_ok=True)
-        
-    def _get_data_dir(self) -> str:
-        """Get the data directory for this collector."""
-        return os.path.join("data", self.source_id)
-        
-    def _save_document(self, document: Dict[str, Any]) -> bool:
-        """Save a document to storage.
-        
-        Args:
-            document: Document data to save
+        # Get source configuration
+        self.source_config = SourceConfig.query.filter_by(source_id=source_id).first()
+        if not self.source_config:
+            raise ValueError(f"No configuration found for source {source_id}")
             
-        Returns:
-            bool: True if save was successful
-        """
-        try:
-            # Add metadata
-            document["collected_at"] = datetime.now().isoformat()
-            document["source_id"] = self.source_id
-            
-            # Generate document ID if not present
-            if "document_id" not in document:
-                document["document_id"] = f"{self.source_id}_{datetime.now().strftime('%Y%m%d_%H%M%S')}"
-                
-            # Save document
-            filepath = os.path.join(self.data_dir, f"{document['document_id']}.json")
-            with open(filepath, "w") as f:
-                json.dump(document, f, indent=2)
-                
-            return True
-            
-        except Exception as e:
-            logger.error(f"Error saving document: {e}")
-            return False
-            
-    def _save_alert(self, alert: Dict[str, Any]) -> bool:
-        """Save an alert to storage.
-        
-        Args:
-            alert: Alert data to save
-            
-        Returns:
-            bool: True if save was successful
-        """
-        try:
-            # Add metadata
-            alert["created_at"] = datetime.now().isoformat()
-            alert["source_id"] = self.source_id
-            
-            # Generate alert ID if not present
-            if "alert_id" not in alert:
-                alert["alert_id"] = f"alert_{self.source_id}_{datetime.now().strftime('%Y%m%d_%H%M%S')}"
-                
-            # Save alert
-            filepath = os.path.join("/alerts", f"{alert['alert_id']}.json")
-            with open(filepath, "w") as f:
-                json.dump(alert, f, indent=2)
-                
-            return True
-            
-        except Exception as e:
-            logger.error(f"Error saving alert: {e}")
-            return False
-            
+        # Create collection status
+        self.collection_status = CollectionStatus(
+            source_id=source_id,
+            status='running',
+            collection_metadata={'start_time': datetime.utcnow().isoformat()}
+        )
+        db.session.add(self.collection_status)
+        db.session.commit()
+    
     @abc.abstractmethod
-    async def collect(self) -> bool:
-        """Collect documents from the data source.
+    def collect(self) -> bool:
+        """Collect documents from the source.
         
         Returns:
             bool: True if collection was successful
         """
         pass
+    
+    def _save_document(self, document: Dict[str, Any]) -> Optional[Document]:
+        """Save a document to storage and database.
+        
+        Args:
+            document: Document data to save
+            
+        Returns:
+            Document: Created document model if successful, None otherwise
+        """
+        try:
+            # Generate document ID if not present
+            if "document_id" not in document:
+                document["document_id"] = f"{self.source_id}_{datetime.now().strftime('%Y%m%d_%H%M%S')}"
+                
+            # Save raw file
+            raw_path = os.path.join(self.storage_dir, f"{document['document_id']}.json")
+            with open(raw_path, "w") as f:
+                json.dump(document, f, indent=2)
+                
+            # Create document model
+            doc_model = Document(
+                document_id=document["document_id"],
+                title=document.get("title", "Untitled"),
+                content=document.get("content", ""),
+                source_type=self.source_id,
+                url=document.get("url"),
+                doc_metadata=document.get("metadata", {})
+            )
+            
+            db.session.add(doc_model)
+            db.session.commit()
+            
+            return doc_model
+            
+        except Exception as e:
+            logger.error(f"Error saving document: {e}")
+            return None
+    
+    def complete_collection(self, documents_collected: int):
+        """Mark collection as completed."""
+        try:
+            self.collection_status.complete(documents_collected)
+            db.session.commit()
+        except Exception as e:
+            logger.error(f"Error completing collection: {e}")
+    
+    def fail_collection(self, error_message: str):
+        """Mark collection as failed."""
+        try:
+            self.collection_status.fail(error_message)
+            db.session.commit()
+        except Exception as e:
+            logger.error(f"Error marking collection as failed: {e}")
         
     @abc.abstractmethod
     async def validate_config(self) -> List[str]:

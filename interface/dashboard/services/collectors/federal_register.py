@@ -4,11 +4,10 @@ Federal Register data collector.
 This module implements document collection from the Federal Register API.
 """
 
-import aiohttp
-import json
 import logging
 from datetime import datetime, timedelta
-from typing import Dict, List, Optional, Any
+import requests
+from typing import Dict, Any, List
 
 from .base import BaseCollector
 from ..data_sources import DataSourceConfig
@@ -18,49 +17,107 @@ logger = logging.getLogger(__name__)
 class FederalRegisterCollector(BaseCollector):
     """Collector for Federal Register documents."""
     
-    BASE_URL = "https://www.federalregister.gov/api/v1"
+    def __init__(self):
+        super().__init__('federal_register')
+        self.base_url = "https://www.federalregister.gov/api/v1"
+        
+    def collect(self) -> bool:
+        """Collect documents from Federal Register API."""
+        try:
+            # Get configuration
+            days_back = self.source_config.config.get('days_back', 7)
+            keywords = self.source_config.config.get('keywords', [])
+            
+            # Calculate date range
+            end_date = datetime.now()
+            start_date = end_date - timedelta(days=days_back)
+            
+            # Build search parameters
+            params = {
+                'conditions[publication_date][gte]': start_date.strftime('%Y-%m-%d'),
+                'conditions[publication_date][lte]': end_date.strftime('%Y-%m-%d'),
+                'per_page': 100,
+                'order': 'newest'
+            }
+            
+            # Add keyword filters if specified
+            if keywords:
+                params['conditions[term]'] = ' OR '.join(keywords)
+            
+            # Make API request
+            response = requests.get(f"{self.base_url}/documents", params=params)
+            response.raise_for_status()
+            
+            # Process results
+            results = response.json()
+            documents = results.get('results', [])
+            
+            # Save documents
+            saved_count = 0
+            for doc in documents:
+                processed_doc = self._process_document(doc)
+                if self._save_document(processed_doc):
+                    saved_count += 1
+            
+            # Mark collection as complete
+            self.complete_collection(saved_count)
+            logger.info(f"Collected {saved_count} documents from Federal Register")
+            
+            return True
+            
+        except Exception as e:
+            error_msg = f"Error collecting from Federal Register: {str(e)}"
+            logger.error(error_msg)
+            self.fail_collection(error_msg)
+            return False
     
-    def __init__(self, source_id: str, config: DataSourceConfig):
-        """Initialize the collector."""
-        super().__init__(source_id, config)
+    def _process_document(self, raw_doc: Dict[str, Any]) -> Dict[str, Any]:
+        """Process a raw Federal Register document.
         
-        # Set up API configuration
-        self.api_key = config.custom_fields.get("api_key")
-        self.rate_limit = config.rate_limit
-        self.max_days_back = config.max_days_back
-        
+        Args:
+            raw_doc: Raw document from the API
+            
+        Returns:
+            Dict[str, Any]: Processed document
+        """
+        return {
+            'document_id': f"fr_{raw_doc['document_number']}",
+            'title': raw_doc['title'],
+            'content': raw_doc.get('abstract', '') + '\n\n' + raw_doc.get('body_html', ''),
+            'url': raw_doc['html_url'],
+            'metadata': {
+                'document_number': raw_doc['document_number'],
+                'publication_date': raw_doc['publication_date'],
+                'document_type': raw_doc['type'],
+                'agencies': [a['name'] for a in raw_doc.get('agencies', [])],
+                'topics': raw_doc.get('topics', []),
+                'citation': raw_doc.get('citation', ''),
+                'page_length': raw_doc.get('page_length'),
+                'signing_date': raw_doc.get('signing_date'),
+                'presidential_document_type': raw_doc.get('presidential_document_type'),
+                'executive_order_number': raw_doc.get('executive_order_number')
+            }
+        }
+
     async def validate_config(self) -> List[str]:
         """Validate the collector configuration."""
         errors = []
         
-        if not self.api_key:
-            errors.append("API key is required")
-            
-        if not self.rate_limit or self.rate_limit < 1:
-            errors.append("Rate limit must be at least 1 request per minute")
-            
-        if not self.max_days_back or self.max_days_back < 1:
+        if not self.source_config.config.get('days_back') or self.source_config.config['days_back'] < 1:
             errors.append("Max days back must be at least 1")
             
-        if not self.config.document_types:
-            errors.append("At least one document type must be specified")
+        if not self.source_config.config.get('keywords'):
+            errors.append("At least one keyword must be specified")
             
         return errors
         
     async def test_connection(self) -> bool:
         """Test the connection to the Federal Register API."""
         try:
-            async with aiohttp.ClientSession() as session:
-                # Try to fetch a single document to test connection
-                url = f"{self.BASE_URL}/documents"
-                params = {
-                    "api_key": self.api_key,
-                    "per_page": 1,
-                    "fields[]": ["document_number"]
-                }
-                
-                async with session.get(url, params=params) as response:
-                    return response.status == 200
+            # Try to fetch a single document to test connection
+            response = requests.get(f"{self.base_url}/documents", params={"per_page": 1})
+            response.raise_for_status()
+            return True
                     
         except Exception as e:
             logger.error(f"Error testing Federal Register connection: {e}")
@@ -71,93 +128,43 @@ class FederalRegisterCollector(BaseCollector):
         try:
             # Calculate date range
             end_date = datetime.now()
-            start_date = end_date - timedelta(days=self.max_days_back)
+            start_date = end_date - timedelta(days=self.source_config.config['days_back'])
             
-            async with aiohttp.ClientSession() as session:
-                # Fetch documents page by page
-                page = 1
-                total_saved = 0
-                
-                while True:
-                    # Build request parameters
-                    params = {
-                        "api_key": self.api_key,
-                        "per_page": 20,
-                        "page": page,
-                        "fields[]": [
-                            "title",
-                            "document_number",
-                            "publication_date",
-                            "document_type",
-                            "abstract",
-                            "html_url",
-                            "pdf_url",
-                            "agencies",
-                            "topics"
-                        ],
-                        "conditions[publication_date][gte]": start_date.strftime("%Y-%m-%d"),
-                        "conditions[publication_date][lte]": end_date.strftime("%Y-%m-%d"),
-                        "conditions[type][]": self.config.document_types
-                    }
-                    
-                    # Make request
-                    url = f"{self.BASE_URL}/documents"
-                    async with session.get(url, params=params) as response:
-                        if response.status != 200:
-                            logger.error(f"Error fetching Federal Register documents: {response.status}")
-                            return False
-                            
-                        data = await response.json()
-                        
-                        # Process documents
-                        for doc in data.get("results", []):
-                            # Convert to our document format
-                            document = {
-                                "document_id": f"fr_{doc['document_number']}",
-                                "title": doc["title"],
-                                "content": doc.get("abstract", ""),
-                                "source_type": "federal_register",
-                                "date": doc["publication_date"],
-                                "metadata": {
-                                    "document_number": doc["document_number"],
-                                    "document_type": doc["document_type"],
-                                    "html_url": doc["html_url"],
-                                    "pdf_url": doc.get("pdf_url"),
-                                    "agencies": doc.get("agencies", []),
-                                    "topics": doc.get("topics", [])
-                                }
-                            }
-                            
-                            # Save document
-                            if self._save_document(document):
-                                total_saved += 1
-                                
-                                # Generate alert if needed (example: new executive order)
-                                if doc["document_type"] == "Executive Order":
-                                    alert = {
-                                        "title": f"New Executive Order: {doc['title']}",
-                                        "source_type": "federal_register",
-                                        "date": doc["publication_date"],
-                                        "threat_score": 0.8,  # Example score
-                                        "categories": {
-                                            "executive_action": 0.9,
-                                            "policy_change": 0.7
-                                        },
-                                        "summary": doc.get("abstract", "No summary available"),
-                                        "document_id": document["document_id"],
-                                        "url": doc["html_url"]
-                                    }
-                                    self._save_alert(alert)
-                        
-                        # Check if we have more pages
-                        if len(data.get("results", [])) < 20:
-                            break
-                            
-                        page += 1
-                
-                logger.info(f"Collected {total_saved} documents from Federal Register")
-                return True
-                
+            # Build search parameters
+            params = {
+                'conditions[publication_date][gte]': start_date.strftime('%Y-%m-%d'),
+                'conditions[publication_date][lte]': end_date.strftime('%Y-%m-%d'),
+                'per_page': 100,
+                'order': 'newest'
+            }
+            
+            # Add keyword filters if specified
+            if self.source_config.config.get('keywords'):
+                params['conditions[term]'] = ' OR '.join(self.source_config.config['keywords'])
+            
+            # Make API request
+            response = requests.get(f"{self.base_url}/documents", params=params)
+            response.raise_for_status()
+            
+            # Process results
+            results = response.json()
+            documents = results.get('results', [])
+            
+            # Save documents
+            saved_count = 0
+            for doc in documents:
+                processed_doc = self._process_document(doc)
+                if self._save_document(processed_doc):
+                    saved_count += 1
+            
+            # Mark collection as complete
+            self.complete_collection(saved_count)
+            logger.info(f"Collected {saved_count} documents from Federal Register")
+            
+            return True
+            
         except Exception as e:
-            logger.error(f"Error collecting Federal Register documents: {e}")
+            error_msg = f"Error collecting from Federal Register: {str(e)}"
+            logger.error(error_msg)
+            self.fail_collection(error_msg)
             return False 

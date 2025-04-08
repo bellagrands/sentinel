@@ -9,6 +9,7 @@ from datetime import datetime, timedelta
 from typing import Dict, List, Optional, Any
 
 from pydantic import BaseModel
+from config import STORAGE_ROOT
 
 logger = logging.getLogger(__name__)
 
@@ -48,8 +49,8 @@ class DataSource(BaseModel):
 class DataSourceService:
     """Service for managing data sources."""
     
-    def __init__(self, data_dir: str = "data/sources"):
-        self.data_dir = data_dir
+    def __init__(self, data_dir: str = None):
+        self.data_dir = data_dir or os.path.join(STORAGE_ROOT, "sources")
         self._ensure_data_dir()
         
     def _ensure_data_dir(self):

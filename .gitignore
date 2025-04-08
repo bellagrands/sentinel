@@ -3,6 +3,9 @@
 # Environment and configuration
 .env
 venv/
+backups/
+storage/
+sentinel-env/
 __pycache__/
 *.py[cod]
 *$py.class

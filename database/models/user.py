@@ -1,22 +1,26 @@
 from datetime import datetime
-from sqlalchemy import Column, Integer, String, DateTime, Boolean
-from sqlalchemy.ext.declarative import declarative_base
+from flask_login import UserMixin
 from passlib.hash import bcrypt_sha256
+from database.db import db
 
-Base = declarative_base()
-
-class User(Base):
+class User(UserMixin, db.Model):
     """User model for authentication and authorization."""
     __tablename__ = 'users'
     
-    id = Column(Integer, primary_key=True)
-    username = Column(String(50), unique=True, nullable=False)
-    email = Column(String(120), unique=True, nullable=False)
-    password_hash = Column(String(128), nullable=False)
-    role = Column(String(20), nullable=False, default='user')
-    is_active = Column(Boolean, nullable=False, default=True)
-    created_at = Column(DateTime, nullable=False, default=datetime.utcnow)
-    last_login = Column(DateTime)
+    id = db.Column(db.Integer, primary_key=True)
+    username = db.Column(db.String(50), unique=True, nullable=False)
+    email = db.Column(db.String(120), unique=True, nullable=False)
+    password_hash = db.Column(db.String(128), nullable=False)
+    role = db.Column(db.String(20), nullable=False, default='user')
+    is_active = db.Column(db.Boolean, nullable=False, default=True)
+    is_admin = db.Column(db.Boolean, nullable=False, default=False)
+    created_at = db.Column(db.DateTime, nullable=False, default=datetime.utcnow)
+    last_login = db.Column(db.DateTime)
+    
+    @classmethod
+    def get_by_username(cls, username):
+        """Get a user by their username."""
+        return cls.query.filter_by(username=username).first()
     
     def set_password(self, password: str):
         """Hash and set the user's password."""
@@ -34,6 +38,7 @@ class User(Base):
             'email': self.email,
             'role': self.role,
             'is_active': self.is_active,
+            'is_admin': self.is_admin,
             'created_at': self.created_at.isoformat(),
             'last_login': self.last_login.isoformat() if self.last_login else None
         } 

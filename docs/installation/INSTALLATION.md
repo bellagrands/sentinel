@@ -72,7 +72,7 @@ Generate a default configuration file:
 python main.py --init-config
 ```
 
-This will create a `config.yaml` file that you can customize for your specific needs.
+This will create a `config.yml` file that you can customize for your specific needs.
 
 ## Step 6: Directory Structure
 
@@ -103,7 +103,7 @@ sentinel/
 ├── logs/
 ├── alerts/
 ├── main.py
-├── config.yaml
+├── config.yml
 ├── requirements.txt
 └── .env
 ```

@@ -1,0 +1,62 @@
+# Sentinel System Configuration
+
+# Document Collection Settings
+collection:
+  interval_minutes: 60  # How often to run collection
+  sources:
+    - type: pacer
+      courts:
+        - nysd  # Southern District of New York
+        - cacd  # Central District of California
+        - dcd   # District of Columbia
+      days_back: 7
+      keywords:
+        - "voting rights"
+        - "election"
+        - "civil rights"
+        
+    - type: state_legislature
+      states:
+        - NY
+        - CA
+        - TX
+      days_back: 7
+      keywords:
+        - "voting"
+        - "election"
+        - "ballot"
+
+# Document Processing Settings
+processing:
+  batch_size: 10  # Number of documents to process in each batch
+  interval_minutes: 30  # How often to run processing
+  nlp:
+    model: en_core_web_md
+    custom_entities:
+      - GOVT_ORG
+      - LEGAL_REF
+  threat_assessment:
+    threshold: 0.7  # Minimum score to trigger alert
+    categories:
+      - voter_suppression
+      - election_interference
+      - civil_rights_violation
+
+# Alert Settings
+alerts:
+  default_channel: general
+  platforms:
+    slack:
+      enabled: true
+      api_key: ${SLACK_API_KEY}
+      default_channel: "#alerts"
+    discord:
+      enabled: false
+      webhook_url: ${DISCORD_WEBHOOK_URL}
+
+# Storage Settings
+storage:
+  data_dir: data
+  documents_dir: data/documents
+  alerts_dir: data/alerts
+  logs_dir: logs 

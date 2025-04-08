@@ -6,34 +6,52 @@ LABEL description="Sentinel Democracy Watchdog System - Watchdog Service"
 # Set working directory
 WORKDIR /app
 
-# Install build dependencies
+# Install system dependencies
 RUN apt-get update && apt-get install -y \
     build-essential \
+    libpq-dev \
+    netcat-traditional \
     && rm -rf /var/lib/apt/lists/*
 
-# Copy requirements file
+# Create non-root user
+RUN groupadd -r sentinel && useradd -r -g sentinel sentinel
+
+# Copy requirements first for better caching
 COPY requirements.txt .
 
 # Install Python dependencies
 RUN pip install --no-cache-dir -r requirements.txt
 
-# Install additional dependencies for the web interface
-RUN pip install --no-cache-dir \
-    uvicorn==0.27.1 \
-    fastapi==0.110.0 \
-    SQLAlchemy==2.0.28 \
-    passlib==1.7.4 \
-    bcrypt==4.1.2 \
-    python-dotenv==1.0.1
-
 # Copy application code
 COPY . .
 
-# Create directory for SQLite database
-RUN mkdir -p /app/data && chown -R nobody:nogroup /app/data
+# Create necessary directories and set permissions
+RUN mkdir -p /app/data /app/logs /app/data/documents && \
+    chown -R sentinel:sentinel /app && \
+    chmod -R 755 /app && \
+    chmod 777 /app/logs
+
+# Set Python path to include the application root
+ENV PYTHONPATH=/app:${PYTHONPATH}
+
+# Create startup script
+RUN echo '#!/bin/bash' > /app/start.sh && \
+    echo 'echo "Waiting for PostgreSQL..."' >> /app/start.sh && \
+    echo 'while ! nc -z sentinel-postgres 5432; do' >> /app/start.sh && \
+    echo '  sleep 1' >> /app/start.sh && \
+    echo 'done' >> /app/start.sh && \
+    echo 'echo "PostgreSQL is up"' >> /app/start.sh && \
+    echo 'echo "Waiting for Redis..."' >> /app/start.sh && \
+    echo 'while ! nc -z sentinel-redis 6379; do' >> /app/start.sh && \
+    echo '  sleep 1' >> /app/start.sh && \
+    echo 'done' >> /app/start.sh && \
+    echo 'echo "Redis is up"' >> /app/start.sh && \
+    echo 'echo "Starting watchdog service..."' >> /app/start.sh && \
+    echo 'python -m interface.main --mode watch' >> /app/start.sh && \
+    chmod +x /app/start.sh
 
 # Switch to non-root user
-USER nobody
+USER sentinel
 
 # Command to run the application
-CMD ["python", "main.py"] 
+CMD ["/app/start.sh"] 

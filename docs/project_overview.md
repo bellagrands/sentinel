@@ -56,7 +56,7 @@ Sentinel is an advanced democracy watchdog system designed to monitor and analyz
 ## Configuration and Deployment
 
 ### Configuration
-- Main configuration file: `config.yaml`
+- Main configuration file: `config.yml`
 - Environment variables: `.env`
 - Customizable parameters:
   - Data source settings

@@ -1,11 +1,11 @@
 from functools import wraps
-from flask import request, jsonify, current_app
+from flask import request, jsonify, current_app, redirect, url_for
 import jwt
 import os
 from datetime import datetime, timedelta
 from typing import Optional, Callable
-from ..database import Session
-from ..models.user import User
+from database.db import db
+from database.models.user import User
 
 # Get secret key from environment or use a default for development
 JWT_SECRET = os.getenv('JWT_SECRET_KEY', 'development-secret-key')
@@ -22,19 +22,19 @@ def authenticate_user(username: str, password: str) -> Optional[str]:
     Returns:
         User ID if authentication successful, None otherwise
     """
-    session = Session()
     try:
-        user = session.query(User).filter_by(username=username, is_active=True).first()
+        user = User.query.filter_by(username=username, is_active=True).first()
         if user and user.verify_password(password):
             # Update last login time
             user.last_login = datetime.utcnow()
-            session.commit()
+            db.session.commit()
             return str(user.id)
         return None
-    finally:
-        session.close()
+    except Exception as e:
+        db.session.rollback()
+        raise
 
-def generate_token(user_id: str) -> str:
+def create_token(user_id: str) -> str:
     """
     Generate a JWT token for a user.
     
@@ -44,9 +44,8 @@ def generate_token(user_id: str) -> str:
     Returns:
         JWT token string
     """
-    session = Session()
     try:
-        user = session.query(User).filter_by(id=int(user_id), is_active=True).first()
+        user = User.query.filter_by(id=int(user_id), is_active=True).first()
         if not user:
             raise ValueError("Invalid user ID")
             
@@ -58,8 +57,9 @@ def generate_token(user_id: str) -> str:
             'iat': datetime.utcnow()
         }
         return jwt.encode(payload, JWT_SECRET, algorithm='HS256')
-    finally:
-        session.close()
+    except Exception as e:
+        db.session.rollback()
+        raise
 
 def validate_token(token: str) -> Optional[str]:
     """
@@ -76,40 +76,30 @@ def validate_token(token: str) -> Optional[str]:
         user_id = payload.get('user_id')
         
         # Verify user still exists and is active
-        session = Session()
-        try:
-            user = session.query(User).filter_by(id=int(user_id), is_active=True).first()
-            return str(user.id) if user else None
-        finally:
-            session.close()
+        user = User.query.filter_by(id=int(user_id), is_active=True).first()
+        return str(user.id) if user else None
     except jwt.ExpiredSignatureError:
         return None
     except jwt.InvalidTokenError:
         return None
     except Exception:
+        db.session.rollback()
         return None
 
 def require_auth(f):
     """Decorator to require JWT authentication."""
     @wraps(f)
     def decorated(*args, **kwargs):
-        auth_header = request.headers.get('Authorization')
-        if not auth_header:
-            return jsonify({'error': 'No authorization header'}), 401
-            
-        try:
-            # Extract token from "Bearer <token>"
-            token = auth_header.split(' ')[1]
-            # Verify and decode token
-            user_id = validate_token(token)
-            if not user_id:
-                return jsonify({'error': 'Invalid or expired token'}), 401
-                
-            # Add user_id to request context
-            request.user_id = user_id
-            return f(*args, **kwargs)
-            
-        except Exception as e:
-            return jsonify({'error': str(e)}), 401
-            
-    return decorated 
+        if not current_user.is_authenticated:
+            return redirect(url_for('auth.login'))
+        return f(*args, **kwargs)
+
+    return decorated
+
+def generate_token(user_id):
+    """Generate a JWT token for the given user ID."""
+    payload = {
+        'user_id': user_id,
+        'exp': datetime.utcnow() + timedelta(days=1)  # Token expires in 1 day
+    }
+    return jwt.encode(payload, JWT_SECRET, algorithm='HS256') 

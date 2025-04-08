@@ -1,0 +1,67 @@
+FROM python:3.11-slim
+
+LABEL maintainer="Sentinel Project Team"
+LABEL description="Sentinel Democracy Watchdog System - Dashboard Service"
+
+# Set working directory
+WORKDIR /app
+
+# Install system dependencies
+RUN apt-get update && apt-get install -y \
+    build-essential \
+    libpq-dev \
+    && rm -rf /var/lib/apt/lists/*
+
+# Create non-root user
+RUN groupadd -r sentinel && useradd -r -g sentinel sentinel
+
+# Copy requirements first for better caching
+COPY requirements.txt .
+
+# Install Python dependencies
+RUN pip install --no-cache-dir -r requirements.txt
+
+# Install additional dependencies
+RUN pip install --no-cache-dir \
+    flask==3.0.2 \
+    flask-cors==4.0.0 \
+    flask-sqlalchemy==3.1.1 \
+    flask-login==0.6.3 \
+    flask-migrate==4.0.5 \
+    bcrypt==4.0.1 \
+    passlib==1.7.4 \
+    gunicorn==21.2.0 \
+    psycopg2-binary==2.9.9 \
+    requests==2.31.0
+
+# Copy application code
+COPY . .
+
+# Create necessary directories and set permissions
+RUN mkdir -p /app/data /app/logs /app/instance && \
+    chown -R sentinel:sentinel /app && \
+    chmod -R 755 /app && \
+    chmod 777 /app/logs
+
+# Set Python path to include the application root
+ENV PYTHONPATH=/app:${PYTHONPATH}
+ENV FLASK_APP=interface.dashboard:create_app
+
+# Switch to non-root user
+USER sentinel
+
+# Expose port
+EXPOSE 5000
+
+# Command to run the application with migrations and create admin user
+CMD flask db stamp head || true && \
+    flask db upgrade && \
+    python cli.py create-admin && \
+    gunicorn --bind 0.0.0.0:5000 \
+    --workers 2 \
+    --timeout 120 \
+    --worker-class sync \
+    --worker-connections 1000 \
+    --max-requests 1000 \
+    --max-requests-jitter 50 \
+    "interface.dashboard:create_app()" 
