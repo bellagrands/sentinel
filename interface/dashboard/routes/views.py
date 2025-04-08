@@ -3,10 +3,12 @@ from flask_login import login_required
 from ..utils.auth import require_auth, validate_token
 from ..utils.stats import get_dashboard_stats
 import requests
+import os
 
 views_bp = Blueprint('views', __name__)
 
-API_BASE_URL = "http://localhost:8000"  # FastAPI server URL
+# Use the Docker service name and port for the API
+API_BASE_URL = "http://api:8000/api"
 
 @views_bp.route('/')
 @require_auth
@@ -14,10 +16,13 @@ def index():
     """Dashboard page."""
     try:
         response = requests.get(f"{API_BASE_URL}/stats")
-        stats = response.json()
-        return render_template('index.html', stats=stats, page_name='dashboard')
-    except Exception as e:
-        return render_template('error.html', error=str(e))
+        if response.status_code == 200:
+            stats = response.json()
+            return render_template('index.html', stats=stats, page_name='dashboard')
+        else:
+            return render_template('errors/error.html', error=f"Failed to fetch stats: {response.status_code}")
+    except requests.exceptions.RequestException as e:
+        return render_template('errors/error.html', error=str(e))
 
 @views_bp.route('/login')
 def login():
@@ -85,7 +90,7 @@ def alerts():
             offset=offset
         )
     except Exception as e:
-        return render_template('error.html', error=str(e))
+        return render_template('errors/error.html', error=str(e))
 
 @views_bp.route('/analyze')
 @require_auth
@@ -102,13 +107,16 @@ def visualize():
         stats = response.json()
         return render_template('visualize.html', page_name='visualize', stats=stats)
     except Exception as e:
-        return render_template('error.html', error=str(e))
+        return render_template('errors/error.html', error=str(e))
 
 @views_bp.route('/api/stats')
 def get_stats():
     """Get dashboard statistics."""
     try:
         response = requests.get(f"{API_BASE_URL}/stats")
-        return jsonify(response.json())
-    except Exception as e:
-        return jsonify({'error': str(e)}), 500 
+        if response.status_code == 200:
+            return jsonify(response.json())
+        else:
+            return jsonify({"error": f"Failed to fetch stats: {response.status_code}"}), response.status_code
+    except requests.exceptions.RequestException as e:
+        return jsonify({"error": str(e)}), 500 

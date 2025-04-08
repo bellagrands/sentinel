@@ -46,6 +46,9 @@ RUN mkdir -p /app/data /app/logs /app/instance && \
 # Set Python path to include the application root
 ENV PYTHONPATH=/app:${PYTHONPATH}
 ENV FLASK_APP=interface.dashboard:create_app
+ENV FLASK_ENV=development
+ENV FLASK_DEBUG=1
+ENV JWT_SECRET_KEY=your-secret-key
 
 # Switch to non-root user
 USER sentinel
@@ -64,4 +67,7 @@ CMD flask db stamp head || true && \
     --worker-connections 1000 \
     --max-requests 1000 \
     --max-requests-jitter 50 \
+    --log-level debug \
+    --access-logfile - \
+    --error-logfile - \
     "interface.dashboard:create_app()" 

@@ -1,8 +1,10 @@
-from flask import Blueprint, request, jsonify, render_template, redirect, url_for, flash
+from flask import Blueprint, request, jsonify, render_template, redirect, url_for, flash, make_response
 from flask_login import login_user, logout_user, login_required, current_user
 from database.db import db
 from database.models.user import User
 from datetime import datetime
+import jwt
+import os
 
 bp = Blueprint('auth', __name__)
 
@@ -26,10 +28,19 @@ def login():
         user = User.query.filter_by(username=username).first()
         if user and user.verify_password(password):
             login_user(user)
-            return jsonify({
+            # Generate JWT token
+            token = jwt.encode(
+                {'user_id': user.id},
+                os.environ.get('JWT_SECRET_KEY', 'your-secret-key'),
+                algorithm='HS256'
+            )
+            response = make_response(jsonify({
                 'message': 'Login successful',
-                'user': user.to_dict()
-            })
+                'user': user.to_dict(),
+                'token': token
+            }))
+            response.headers['Authorization'] = f'Bearer {token}'
+            return response
         else:
             return jsonify({'error': 'Invalid username or password'}), 401
 

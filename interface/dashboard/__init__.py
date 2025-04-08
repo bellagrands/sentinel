@@ -12,6 +12,9 @@ def create_app():
     """Create and configure the Flask application."""
     app = Flask(__name__, static_folder='static', template_folder='templates')
     app.config['SECRET_KEY'] = os.environ.get('SECRET_KEY', 'dev')
+    app.config['JWT_SECRET_KEY'] = os.environ.get('JWT_SECRET_KEY', 'your-secret-key')
+    app.config['SQLALCHEMY_DATABASE_URI'] = os.environ.get('DATABASE_URL', 'postgresql://postgres:postgres@postgres:5432/sentinel')
+    app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
     
     # Configure logging
     logging.basicConfig(level=logging.INFO)
@@ -42,6 +45,7 @@ def create_app():
         logger.info("Database initialized successfully")
     except Exception as e:
         logger.error(f"Error initializing database: {e}")
+        raise
     
     # Register blueprints
     from .routes.auth import bp as auth_bp
@@ -65,6 +69,8 @@ def create_app():
     
     @app.errorhandler(500)
     def internal_error(error):
+        logger.error(f"Internal server error: {error}")
+        db.session.rollback()
         return render_template('errors/500.html'), 500
     
     # Configure app
@@ -75,5 +81,6 @@ def create_app():
     def before_request():
         session.permanent = True
         app.permanent_session_lifetime = datetime.timedelta(minutes=60)
+        logger.info(f"Processing request: {request.method} {request.path}")
 
     return app 

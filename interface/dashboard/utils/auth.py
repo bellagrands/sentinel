@@ -1,5 +1,6 @@
 from functools import wraps
 from flask import request, jsonify, current_app, redirect, url_for
+from flask_login import current_user
 import jwt
 import os
 from datetime import datetime, timedelta
