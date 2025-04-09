@@ -1,4 +1,5 @@
 from flask import Flask
+from flask_migrate import Migrate
 from database.db import db, init_db
 from database.models import SourceConfig
 import click
@@ -7,6 +8,7 @@ app = Flask(__name__)
 app.config.from_object('config')
 
 init_db(app)
+migrate = Migrate(app, db)
 
 @app.cli.command('init-sources')
 def init_sources():

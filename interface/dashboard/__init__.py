@@ -1,24 +1,32 @@
 from flask import Flask, render_template, redirect, url_for, request, session
 from flask_cors import CORS
 from flask_login import LoginManager, current_user
+from flask_migrate import Migrate
 from database.db import db, init_db
-from database.models.user import User
+from database.config import DatabaseConfig
+from .routes.views import views_bp
+from .routes.auth import auth_bp
 import logging
 import os
 import jwt
 import datetime
 
+# Set up logging
+logger = logging.getLogger(__name__)
+
 def create_app():
-    """Create and configure the Flask application."""
+    """Create and configure Flask application."""
     app = Flask(__name__, static_folder='static', template_folder='templates')
+    
+    # Configure app
+    app.config.update(DatabaseConfig.get_config())
     app.config['SECRET_KEY'] = os.environ.get('SECRET_KEY', 'dev')
     app.config['JWT_SECRET_KEY'] = os.environ.get('JWT_SECRET_KEY', 'your-secret-key')
-    app.config['SQLALCHEMY_DATABASE_URI'] = os.environ.get('DATABASE_URL', 'postgresql://postgres:postgres@postgres:5432/sentinel')
+    app.config['SQLALCHEMY_DATABASE_URI'] = os.environ.get('DATABASE_URL', 'postgresql://postgres:postgres@sentinel-postgres:5432/postgres')
     app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
     
     # Configure logging
     logging.basicConfig(level=logging.INFO)
-    logger = logging.getLogger(__name__)
     
     # Configure CORS
     CORS(app, resources={
@@ -37,19 +45,23 @@ def create_app():
 
     @login_manager.user_loader
     def load_user(user_id):
+        from database.models.user import User
         return User.query.get(int(user_id))
     
     # Initialize database
     try:
-        init_db(app)
+        db.init_app(app)
+        migrate = Migrate(app, db)
+        with app.app_context():
+            init_db()
         logger.info("Database initialized successfully")
     except Exception as e:
         logger.error(f"Error initializing database: {e}")
         raise
     
     # Register blueprints
-    from .routes.auth import bp as auth_bp
-    from .routes.views import views_bp
+    app.register_blueprint(views_bp)
+    app.register_blueprint(auth_bp, url_prefix='/auth')
     
     # Root route - redirect based on auth status
     @app.route('/')
@@ -58,9 +70,6 @@ def create_app():
         if current_user.is_authenticated:
             return redirect(url_for('views.index'))
         return redirect(url_for('auth.login'))
-    
-    app.register_blueprint(auth_bp, url_prefix='/auth')
-    app.register_blueprint(views_bp, url_prefix='/views')
     
     # Error handlers
     @app.errorhandler(404)

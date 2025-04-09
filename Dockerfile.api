@@ -55,8 +55,13 @@ RUN echo '#!/bin/bash' > /app/start.sh && \
     echo '  sleep 1' >> /app/start.sh && \
     echo 'done' >> /app/start.sh && \
     echo 'echo "PostgreSQL is up"' >> /app/start.sh && \
+    echo 'echo "Waiting for Redis..."' >> /app/start.sh && \
+    echo 'while ! nc -z sentinel-redis 6379; do' >> /app/start.sh && \
+    echo '  sleep 1' >> /app/start.sh && \
+    echo 'done' >> /app/start.sh && \
+    echo 'echo "Redis is up"' >> /app/start.sh && \
     echo 'echo "Running database migrations..."' >> /app/start.sh && \
-    echo 'flask db upgrade' >> /app/start.sh && \
+    echo 'cd /app && alembic upgrade head' >> /app/start.sh && \
     echo 'echo "Starting API service..."' >> /app/start.sh && \
     echo 'python -m interface.main --mode api' >> /app/start.sh && \
     chmod +x /app/start.sh

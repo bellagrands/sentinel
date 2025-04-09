@@ -6,9 +6,9 @@ from datetime import datetime
 import jwt
 import os
 
-bp = Blueprint('auth', __name__)
+auth_bp = Blueprint('auth', __name__)
 
-@bp.route('/login', methods=['GET', 'POST'])
+@auth_bp.route('/login', methods=['GET', 'POST'])
 def login():
     """Handle login page and form submission."""
     if current_user.is_authenticated:
@@ -44,7 +44,7 @@ def login():
         else:
             return jsonify({'error': 'Invalid username or password'}), 401
 
-@bp.route('/register', methods=['GET', 'POST'])
+@auth_bp.route('/register', methods=['GET', 'POST'])
 def register():
     """Handle user registration."""
     if current_user.is_authenticated:
@@ -93,14 +93,14 @@ def register():
             db.session.rollback()
             return jsonify({'error': str(e)}), 500
 
-@bp.route('/logout', methods=['POST'])
+@auth_bp.route('/logout', methods=['POST'])
 @login_required
 def logout():
     """Handle user logout."""
     logout_user()
     return jsonify({'message': 'Logged out successfully'})
 
-@bp.route('/profile', methods=['GET', 'PUT'])
+@auth_bp.route('/profile', methods=['GET', 'PUT'])
 @login_required
 def profile():
     """Handle user profile operations."""

@@ -30,7 +30,10 @@ def create_admin_user(username: str, email: str, password: str) -> None:
             is_admin=True,
             created_at=datetime.utcnow()
         )
-        user.set_password(password)
+        
+        # Explicitly set the password hash using werkzeug's generate_password_hash
+        from werkzeug.security import generate_password_hash
+        user.password_hash = generate_password_hash(password, method='pbkdf2:sha256')
         
         db.session.add(user)
         db.session.commit()

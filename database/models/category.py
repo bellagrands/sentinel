@@ -1,34 +1,47 @@
-from database.db import db
+from datetime import datetime
+from sqlalchemy import Column, Integer, String, DateTime, Text, Table, ForeignKey
+from sqlalchemy.orm import relationship
+from database.db import Base
 
 # Association tables
-document_categories = db.Table('document_categories',
-    db.Column('document_id', db.Integer, db.ForeignKey('documents.id')),
-    db.Column('category_id', db.Integer, db.ForeignKey('categories.id'))
+document_categories = Table(
+    'document_categories',
+    Base.metadata,
+    Column('document_id', Integer, ForeignKey('documents.id')),
+    Column('category_id', Integer, ForeignKey('categories.id'))
 )
 
-alert_categories = db.Table('alert_categories',
-    db.Column('alert_id', db.Integer, db.ForeignKey('alerts.id')),
-    db.Column('category_id', db.Integer, db.ForeignKey('categories.id'))
+alert_categories = Table(
+    'alert_categories',
+    Base.metadata,
+    Column('alert_id', Integer, ForeignKey('alerts.id')),
+    Column('category_id', Integer, ForeignKey('categories.id'))
 )
 
-class Category(db.Model):
+class Category(Base):
+    """Category model."""
     __tablename__ = 'categories'
-    
-    id = db.Column(db.Integer, primary_key=True)
-    name = db.Column(db.String(100), nullable=False, unique=True)
-    description = db.Column(db.String(500))
-    
+
+    id = Column(Integer, primary_key=True)
+    name = Column(String(100), unique=True, nullable=False)
+    description = Column(Text)
+    created_at = Column(DateTime, default=datetime.utcnow)
+    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+
     # Relationships
-    documents = db.relationship('Document', secondary=document_categories, back_populates='categories')
-    alerts = db.relationship('Alert', secondary=alert_categories, back_populates='categories')
-    
-    def __init__(self, name, description=None):
-        self.name = name
-        self.description = description
-    
+    documents = relationship("Document", back_populates="category")
+    alerts = relationship("Alert", back_populates="category")
+
+    def __repr__(self):
+        """String representation."""
+        return f'<Category {self.name}>'
+
     def to_dict(self):
+        """Convert category to dictionary."""
         return {
             'id': self.id,
             'name': self.name,
-            'description': self.description
+            'description': self.description,
+            'created_at': self.created_at.isoformat() if self.created_at else None,
+            'updated_at': self.updated_at.isoformat() if self.updated_at else None
         } 

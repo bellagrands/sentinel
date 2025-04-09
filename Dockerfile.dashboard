@@ -10,6 +10,7 @@ WORKDIR /app
 RUN apt-get update && apt-get install -y \
     build-essential \
     libpq-dev \
+    netcat-traditional \
     && rm -rf /var/lib/apt/lists/*
 
 # Create non-root user
@@ -50,24 +51,31 @@ ENV FLASK_ENV=development
 ENV FLASK_DEBUG=1
 ENV JWT_SECRET_KEY=your-secret-key
 
+# Create startup script
+RUN echo '#!/bin/bash' > /app/start.sh && \
+    echo 'echo "Waiting for PostgreSQL..."' >> /app/start.sh && \
+    echo 'while ! nc -z sentinel-postgres 5432; do' >> /app/start.sh && \
+    echo '  sleep 1' >> /app/start.sh && \
+    echo 'done' >> /app/start.sh && \
+    echo 'echo "PostgreSQL is up"' >> /app/start.sh && \
+    echo 'echo "Waiting for Redis..."' >> /app/start.sh && \
+    echo 'while ! nc -z sentinel-redis 6379; do' >> /app/start.sh && \
+    echo '  sleep 1' >> /app/start.sh && \
+    echo 'done' >> /app/start.sh && \
+    echo 'echo "Redis is up"' >> /app/start.sh && \
+    echo 'echo "Running database migrations..."' >> /app/start.sh && \
+    echo 'cd /app && alembic upgrade head' >> /app/start.sh && \
+    echo 'echo "Creating admin user..."' >> /app/start.sh && \
+    echo 'python scripts/create_admin.py admin admin@example.com admin' >> /app/start.sh && \
+    echo 'echo "Starting dashboard service..."' >> /app/start.sh && \
+    echo 'gunicorn --bind 0.0.0.0:5000 --workers 2 --timeout 120 --worker-class sync --worker-connections 1000 --max-requests 1000 --max-requests-jitter 50 --log-level debug --access-logfile - --error-logfile - "interface.dashboard:create_app()"' >> /app/start.sh && \
+    chmod +x /app/start.sh
+
 # Switch to non-root user
 USER sentinel
 
 # Expose port
 EXPOSE 5000
 
-# Command to run the application with migrations and create admin user
-CMD flask db stamp head || true && \
-    flask db upgrade && \
-    python cli.py create-admin && \
-    gunicorn --bind 0.0.0.0:5000 \
-    --workers 2 \
-    --timeout 120 \
-    --worker-class sync \
-    --worker-connections 1000 \
-    --max-requests 1000 \
-    --max-requests-jitter 50 \
-    --log-level debug \
-    --access-logfile - \
-    --error-logfile - \
-    "interface.dashboard:create_app()" 
+# Command to run the application
+CMD ["/app/start.sh"]
