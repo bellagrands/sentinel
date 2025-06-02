@@ -70,6 +70,19 @@ Edit the `.env` file to configure:
 - Processing settings
 - Alerting thresholds
 
+**Important Environment Variables for the Dashboard Frontend:**
+
+*   `API_BASE_URL`: This variable **must** be set for the dashboard's Flask application. It should point to the full base URL of the backend API (e.g., `http://sentinel-api:8000/api` if running in Docker, or `http://localhost:8000/api` if running locally). The dashboard relies on this to fetch data for display.
+*   `JWT_SECRET_KEY`: This secret key is used for encoding and decoding JSON Web Tokens (JWTs) for user authentication. It **must** be set and should be a strong, unique secret. It needs to be consistent between the authentication module (issuing tokens) and any part of the system that validates them.
+*   `SECRET_KEY`: This is a standard Flask secret key used for session management and other security-related features. It **must** be set to a strong, unique secret.
+
+**External Dependencies for Dashboard Frontend:**
+
+*   **Internet Access for CDNs:** The dashboard frontend (`interface/dashboard`) relies on Content Delivery Networks (CDNs) to load:
+    *   **Tailwind CSS:** For styling.
+    *   **Chart.js:** For rendering charts.
+    If the environment where the dashboard is running does not have internet access, these libraries will fail to load, and the dashboard will not render correctly (e.g., it will be unstyled, and charts will be missing). For air-gapped environments, these assets would need to be served locally.
+
 ## Documentation
 
 - [Dashboard Usage Guide](docs/DASHBOARD_USAGE.md)

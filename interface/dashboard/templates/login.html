@@ -55,9 +55,9 @@ document.getElementById('loginForm').addEventListener('submit', async (e) => {
         
         if (response.ok) {
             // Store the token
-            localStorage.setItem('token', data.token);
+            localStorage.setItem('auth_token', data.token);
             // Redirect to dashboard on successful login
-            window.location.href = '/views/';
+            window.location.href = '/';
         } else {
             errorMessage.textContent = data.error || 'Login failed';
             errorMessage.classList.remove('hidden');

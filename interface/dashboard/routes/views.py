@@ -14,15 +14,8 @@ API_BASE_URL = os.getenv('API_BASE_URL', 'http://sentinel-api:8000/api')
 @require_auth
 def index():
     """Dashboard page."""
-    try:
-        response = requests.get(f"{API_BASE_URL}/stats")
-        if response.status_code == 200:
-            stats = response.json()
-            return render_template('index.html', stats=stats, page_name='dashboard')
-        else:
-            return render_template('errors/error.html', error=f"Failed to fetch stats: {response.status_code}")
-    except requests.exceptions.RequestException as e:
-        return render_template('errors/error.html', error=str(e))
+    # dashboard.html fetches its own data asynchronously
+    return render_template('dashboard.html', page_name='dashboard')
 
 @views_bp.route('/login')
 def login():
