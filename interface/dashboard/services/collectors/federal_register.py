@@ -6,7 +6,7 @@ This module implements document collection from the Federal Register API.
 
 import logging
 from datetime import datetime, timedelta
-import requests
+import aiohttp
 from typing import Dict, Any, List
 
 from .base import BaseCollector
@@ -17,59 +17,10 @@ logger = logging.getLogger(__name__)
 class FederalRegisterCollector(BaseCollector):
     """Collector for Federal Register documents."""
     
-    def __init__(self):
-        super().__init__('federal_register')
+    def __init__(self, source_id: str = 'federal_register', config=None):
+        super().__init__(source_id)
+        # We handle config in the manager, base class loads source_config
         self.base_url = "https://www.federalregister.gov/api/v1"
-        
-    def collect(self) -> bool:
-        """Collect documents from Federal Register API."""
-        try:
-            # Get configuration
-            days_back = self.source_config.config.get('days_back', 7)
-            keywords = self.source_config.config.get('keywords', [])
-            
-            # Calculate date range
-            end_date = datetime.now()
-            start_date = end_date - timedelta(days=days_back)
-            
-            # Build search parameters
-            params = {
-                'conditions[publication_date][gte]': start_date.strftime('%Y-%m-%d'),
-                'conditions[publication_date][lte]': end_date.strftime('%Y-%m-%d'),
-                'per_page': 100,
-                'order': 'newest'
-            }
-            
-            # Add keyword filters if specified
-            if keywords:
-                params['conditions[term]'] = ' OR '.join(keywords)
-            
-            # Make API request
-            response = requests.get(f"{self.base_url}/documents", params=params)
-            response.raise_for_status()
-            
-            # Process results
-            results = response.json()
-            documents = results.get('results', [])
-            
-            # Save documents
-            saved_count = 0
-            for doc in documents:
-                processed_doc = self._process_document(doc)
-                if self._save_document(processed_doc):
-                    saved_count += 1
-            
-            # Mark collection as complete
-            self.complete_collection(saved_count)
-            logger.info(f"Collected {saved_count} documents from Federal Register")
-            
-            return True
-            
-        except Exception as e:
-            error_msg = f"Error collecting from Federal Register: {str(e)}"
-            logger.error(error_msg)
-            self.fail_collection(error_msg)
-            return False
     
     def _process_document(self, raw_doc: Dict[str, Any]) -> Dict[str, Any]:
         """Process a raw Federal Register document.
@@ -115,9 +66,10 @@ class FederalRegisterCollector(BaseCollector):
         """Test the connection to the Federal Register API."""
         try:
             # Try to fetch a single document to test connection
-            response = requests.get(f"{self.base_url}/documents", params={"per_page": 1})
-            response.raise_for_status()
-            return True
+            async with aiohttp.ClientSession() as session:
+                async with session.get(f"{self.base_url}/documents", params={"per_page": 1}) as response:
+                    response.raise_for_status()
+                    return True
                     
         except Exception as e:
             logger.error(f"Error testing Federal Register connection: {e}")
@@ -143,11 +95,12 @@ class FederalRegisterCollector(BaseCollector):
                 params['conditions[term]'] = ' OR '.join(self.source_config.config['keywords'])
             
             # Make API request
-            response = requests.get(f"{self.base_url}/documents", params=params)
-            response.raise_for_status()
+            async with aiohttp.ClientSession() as session:
+                async with session.get(f"{self.base_url}/documents", params=params) as response:
+                    response.raise_for_status()
+                    # Process results
+                    results = await response.json()
             
-            # Process results
-            results = response.json()
             documents = results.get('results', [])
             
             # Save documents
