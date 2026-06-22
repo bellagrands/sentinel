@@ -40,7 +40,7 @@ class BaseCollector(abc.ABC):
         db.session.commit()
     
     @abc.abstractmethod
-    def collect(self) -> bool:
+    async def collect(self) -> bool:
         """Collect documents from the source.
         
         Returns:
