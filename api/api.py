@@ -1,3 +1,4 @@
+import subprocess
 from fastapi import APIRouter, HTTPException
 from typing import List, Optional, Dict, Any
 import os
@@ -230,21 +231,23 @@ async def get_stats() -> Dict[str, Any]:
             # Get basic counts
             stats['total_documents'] = session.query(Document).count()
             stats['total_alerts'] = session.query(Alert).count()
-            stats['high_threats'] = session.query(Alert).filter(Alert.threat_score >= 0.7).count()
+            stats['high_threats'] = session.query(Alert).filter(Alert.threat_level >= 0.7).count()
             
             # Get average threat score
-            avg_score = session.query(func.avg(Alert.threat_score)).scalar()
+            avg_score = session.query(func.avg(Alert.threat_level)).scalar()
             stats['avg_threat_score'] = float(avg_score) if avg_score else 0
             
             # Get threat distribution
-            for i in range(5):
-                min_score = i * 0.2
-                max_score = min_score + 0.2
-                count = session.query(Alert).filter(
-                    Alert.threat_score >= min_score,
-                    Alert.threat_score < max_score
-                ).count()
-                stats['threat_distribution'][i] = count
+            from sqlalchemy import case, and_
+            distribution = session.query(
+                func.sum(case((and_(Alert.threat_level >= 0.0, Alert.threat_level < 0.2), 1), else_=0)),
+                func.sum(case((and_(Alert.threat_level >= 0.2, Alert.threat_level < 0.4), 1), else_=0)),
+                func.sum(case((and_(Alert.threat_level >= 0.4, Alert.threat_level < 0.6), 1), else_=0)),
+                func.sum(case((and_(Alert.threat_level >= 0.6, Alert.threat_level < 0.8), 1), else_=0)),
+                func.sum(case((and_(Alert.threat_level >= 0.8, Alert.threat_level <= 1.0), 1), else_=0))
+            ).first()
+            if distribution:
+                stats['threat_distribution'] = [int(x) if x is not None else 0 for x in distribution]
             
             # Get recent alerts
             recent_alerts = session.query(Alert).order_by(Alert.created_at.desc()).limit(5).all()
@@ -253,14 +256,14 @@ async def get_stats() -> Dict[str, Any]:
                     'date': alert.created_at.strftime('%Y-%m-%d %H:%M:%S'),
                     'title': alert.title,
                     'source_type': alert.document.source if alert.document else 'Unknown',
-                    'threat_score': alert.threat_score,
+                    'threat_score': alert.threat_level,
                     'document_id': alert.document_id,
                     'categories': [
                         {
                             'name': category.name,
                             'score': 1.0  # We don't store category scores in the DB
                         }
-                        for category in alert.categories
+                        for category in ([alert.category] if alert.category else [])
                     ]
                 }
                 for alert in recent_alerts
@@ -271,7 +274,7 @@ async def get_stats() -> Dict[str, Any]:
                 Category.name,
                 func.count(Category.id).label('count')
             ).join(
-                Alert.categories
+                Alert
             ).group_by(
                 Category.name
             ).order_by(
@@ -289,7 +292,7 @@ async def get_stats() -> Dict[str, Any]:
             
             daily_scores = session.query(
                 func.date(Alert.created_at).label('date'),
-                func.avg(Alert.threat_score).label('avg_score')
+                func.avg(Alert.threat_level).label('avg_score')
             ).filter(
                 Alert.created_at >= start_date
             ).group_by(
@@ -298,7 +301,7 @@ async def get_stats() -> Dict[str, Any]:
             
             # Convert to dict for easier lookup
             score_by_date = {
-                date.strftime('%Y-%m-%d'): float(avg_score)
+                date: float(avg_score)
                 for date, avg_score in daily_scores
             }
             
@@ -306,7 +309,7 @@ async def get_stats() -> Dict[str, Any]:
             timeline = []
             current_date = start_date
             while current_date <= end_date:
-                date_str = current_date.strftime('%Y-%m-%d')
+                date_str = current_date
                 timeline.append({
                     'date': date_str,
                     'avg_score': score_by_date.get(date_str, 0)
