@@ -230,21 +230,24 @@ async def get_stats() -> Dict[str, Any]:
             # Get basic counts
             stats['total_documents'] = session.query(Document).count()
             stats['total_alerts'] = session.query(Alert).count()
-            stats['high_threats'] = session.query(Alert).filter(Alert.threat_score >= 0.7).count()
+            stats['high_threats'] = session.query(Alert).filter(Alert.threat_level >= 0.7).count()
             
             # Get average threat score
-            avg_score = session.query(func.avg(Alert.threat_score)).scalar()
+            avg_score = session.query(func.avg(Alert.threat_level)).scalar()
             stats['avg_threat_score'] = float(avg_score) if avg_score else 0
             
             # Get threat distribution
-            for i in range(5):
-                min_score = i * 0.2
-                max_score = min_score + 0.2
-                count = session.query(Alert).filter(
-                    Alert.threat_score >= min_score,
-                    Alert.threat_score < max_score
-                ).count()
-                stats['threat_distribution'][i] = count
+            from sqlalchemy.sql import case
+            distribution_result = session.query(
+                func.sum(case((Alert.threat_level < 0.2, 1), else_=0)),
+                func.sum(case(((Alert.threat_level >= 0.2) & (Alert.threat_level < 0.4), 1), else_=0)),
+                func.sum(case(((Alert.threat_level >= 0.4) & (Alert.threat_level < 0.6), 1), else_=0)),
+                func.sum(case(((Alert.threat_level >= 0.6) & (Alert.threat_level < 0.8), 1), else_=0)),
+                func.sum(case((Alert.threat_level >= 0.8, 1), else_=0))
+            ).first()
+
+            if distribution_result:
+                stats['threat_distribution'] = [int(r or 0) for r in distribution_result]
             
             # Get recent alerts
             recent_alerts = session.query(Alert).order_by(Alert.created_at.desc()).limit(5).all()
@@ -253,7 +256,7 @@ async def get_stats() -> Dict[str, Any]:
                     'date': alert.created_at.strftime('%Y-%m-%d %H:%M:%S'),
                     'title': alert.title,
                     'source_type': alert.document.source if alert.document else 'Unknown',
-                    'threat_score': alert.threat_score,
+                    'threat_score': alert.threat_level,
                     'document_id': alert.document_id,
                     'categories': [
                         {
@@ -289,7 +292,7 @@ async def get_stats() -> Dict[str, Any]:
             
             daily_scores = session.query(
                 func.date(Alert.created_at).label('date'),
-                func.avg(Alert.threat_score).label('avg_score')
+                func.avg(Alert.threat_level).label('avg_score')
             ).filter(
                 Alert.created_at >= start_date
             ).group_by(
@@ -329,7 +332,7 @@ async def list_db_alerts(min_score: float = 0.0, limit: int = 20, offset: int = 
         all_alerts = _get_alerts()
         filtered_alerts = [
             alert for alert in all_alerts 
-            if float(alert.get('threat_score', 0)) >= min_score
+            if float(alert.get('threat_level', 0)) >= min_score
         ]
         
         # Sort by timestamp descending and paginate
